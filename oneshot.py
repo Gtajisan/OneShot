@@ -52,6 +52,10 @@ def run_wpa_supplicant(options):
         options.tempconf=temp.name
     cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(options.interface, options.tempconf)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+    while True:
+        s = recvuntil(proc, '\n')
+        if options.verbose: sys.stderr.write(s)
+        if 'update_config=1' in s: break
     return proc
 
 
@@ -228,16 +232,10 @@ if __name__ == '__main__':
 
     data = Data()
     wpas = run_wpa_supplicant(options)
-    while True:
-        s = recvuntil(wpas, '\n')
-        if options.verbose: sys.stderr.write(s)
-        if 'update_config=1' in s: break
 
-    
     if not wps_reg(options):
         cleanup(wpas, options)
         die('Error while launching wpa_cli')
-
 
     if not options.pixiemode:
         wait_psk = True
@@ -260,6 +258,9 @@ if __name__ == '__main__':
         if a:
             print('Trying to get password with the correct pin...')
             options.pin = a
+            if not wps_reg(options):
+                cleanup(wpas, options)
+                die('Error while launching wpa_cli')
             try:
                 poll_wpa_supplicant(wpas, options, data, True)
             except KeyboardInterrupt:

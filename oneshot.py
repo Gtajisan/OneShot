@@ -257,6 +257,8 @@ if __name__ == '__main__':
         a = parse_pixiewps(out)
         if a:
             print('Trying to get password with the correct pin...')
+            cleanup(wpas, options)
+            wpas = run_wpa_supplicant(options)
             options.pin = a
             if not wps_reg(options):
                 cleanup(wpas, options)

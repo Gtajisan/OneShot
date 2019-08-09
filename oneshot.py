@@ -250,10 +250,8 @@ if __name__ == '__main__':
         cleanup(wpas, options)
         sys.exit(1)
 
-    if data.got_all():
+    if data.got_all() and options.pixiemode:
         pixiecmd = data.get_pixie_cmd()
-
-    if options.pixiemode and pixiecmd:
         print("Running Pixiewps...")
         if options.verbose: print("Cmd: {}".format(pixiecmd))
         out = shellcmd(pixiecmd)

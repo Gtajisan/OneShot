@@ -4,7 +4,7 @@
 
 # Requirements
  - Python 3.5 and above;
- - [Wpa supplicant](https://www.w1.fi/wpa_supplicant/)
+ - [Wpa supplicant](https://www.w1.fi/wpa_supplicant/);
  - [Pixiewps](https://github.com/wiire-a/pixiewps).
 
 # Setup

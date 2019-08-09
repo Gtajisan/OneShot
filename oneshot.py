@@ -151,7 +151,7 @@ def process_wpa_supplicant(pipe, options, data):
     elif 'NL80211_CMD_DEL_STATION' in line:
         #if data.state == 'ASSOCIATED':
         #   print "URGH"
-        print("[ERROR]: unexpected interference - kill NetworkManager/wpa_supplicant!")
+        print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
         #return False
     elif 'Trying to authenticate with' in line:
         options.essid = line.split("'")[1]

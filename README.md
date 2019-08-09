@@ -11,7 +11,7 @@
 ## Debian/Ubuntu
 **Installing requirements**
  ```
- sudo apt -y install python3 wpasupplicant git build-essential unzip
+ sudo apt -y install python3 wpasupplicant wget build-essential unzip
  ```
 **Building andr installing Pixiewps**:
  ```

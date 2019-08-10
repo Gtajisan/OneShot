@@ -11,9 +11,14 @@
 ## Debian/Ubuntu
 **Installing requirements**
  ```
- sudo apt -y install python3 wpasupplicant wget build-essential unzip
+ sudo apt install -y python3 wpasupplicant wget build-essential unzip
  ```
-**Building andr installing Pixiewps**:
+**Installing Pixiewps**:
+***Ubuntu 18.04 an above or Debian 10 and above***
+ ```
+ sudo apt install -y pixiewps
+ ```
+***Other***
  ```
  wget https://github.com/wiire-a/pixiewps/archive/master.zip && unzip master.zip
  cd pixiewps*/

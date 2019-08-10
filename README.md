@@ -13,7 +13,7 @@
  ```
  sudo apt install -y python3 wpasupplicant wget build-essential unzip
  ```
-**Installing Pixiewps**:
+**Installing Pixiewps**
 
 ***Ubuntu 18.04 an above or Debian 10 and above***
  ```

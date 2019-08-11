@@ -305,7 +305,7 @@ if __name__ == '__main__':
             options.pin = a
             options.pixiemode = False
             data.clear()
-            print('[*] Trying to get WPA PSK with the correct PIN "{}"...'.format(options.pin))
+            print('[*] Trying to get WPA PSK with the correct PIN...'.format(options.pin))
 
             connect(options, data)
 

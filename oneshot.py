@@ -156,12 +156,12 @@ def process_wpa_supplicant(pipe, options, data):
         print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
         #return False
     elif 'Trying to authenticate with' in line:
-        if 'SSID' in line: options.essid = line.split("'")[1]
+        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ')
         print('[*] Authenticating...')
     elif 'Authentication response' in line:
         print('[+] Authenticated')
     elif 'Trying to associate with' in line:
-        if 'SSID' in line: options.essid = line.split("'")[1]
+        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ')
         print('[*] Associating with AP...')
     elif 'Associated with' in line and options.interface in line:
         if options.essid:

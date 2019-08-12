@@ -36,14 +36,15 @@
 
 # Usage
 ```
- python3 oneshot.py <arguments>
+ oneshot.py <arguments>
  Required Arguments:
     -i, --interface=<wlan0>  : Name of the interface to use
     -b, --bssid=<mac>        : BSSID of the target AP
 
 Optional Arguments:
     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
-    -K, --pixie-dust         : Run pixiedust attack
+    -K, --pixie-dust         : Run Pixie Dust attack
+    -X                       : Alway print Pixiewps command
     -v                       : Verbose output
  ```
 

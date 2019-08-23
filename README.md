@@ -44,6 +44,7 @@
 Optional Arguments:
     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
     -K, --pixie-dust         : Run Pixie Dust attack
+    -F, --force              : Run Pixiewps with --force option (bruteforce full range)
     -X                       : Alway print Pixiewps command
     -v                       : Verbose output
  ```

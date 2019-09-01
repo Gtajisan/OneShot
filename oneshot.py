@@ -201,7 +201,7 @@ def poll_wpa_supplicant(wpas, options, data):
 
         if not res:
             break
-        if data.state == 'WSC_NACK':ifaceUp(options.interface, down=True)
+        if data.state == 'WSC_NACK':
             print('[-] Error: wrong PIN code')
             break
         elif data.state == 'GOT_PSK':

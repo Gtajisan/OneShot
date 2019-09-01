@@ -201,7 +201,7 @@ def poll_wpa_supplicant(wpas, options, data):
 
         if not res:
             break
-        if data.state == 'WSC_NACK':
+        if data.state == 'WSC_NACK':ifaceUp(options.interface, down=True)
             print('[-] Error: wrong PIN code')
             break
         elif data.state == 'GOT_PSK':
@@ -230,6 +230,7 @@ def connect(options, data):
     except KeyboardInterrupt:
         print("\nAborting...")
         cleanup(wpas, options)
+        ifaceUp(options.interface, down=True)
         sys.exit(1)
 
     print('[*] Trying PIN "{}"...'.format(options.pin))
@@ -240,6 +241,7 @@ def connect(options, data):
     except KeyboardInterrupt:
         print("\nAborting...")
         cleanup(wpas, options)
+        ifaceUp(options.interface, down=True)
         sys.exit(1)
     cleanup(wpas, options)
     ifaceUp(options.interface, down=True)
@@ -484,6 +486,7 @@ if __name__ == '__main__':
         try:
             suggest_network(options, vuln_list)
         except KeyboardInterrupt:
+            ifaceUp(options.interface, down=True)
             die('\nAborting...')
 
     data = Data()

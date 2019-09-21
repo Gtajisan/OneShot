@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 import sys
 import subprocess
 import os
 import tempfile
 import shutil
 import re
+import codecs
 
 
 class Data():
@@ -172,12 +172,12 @@ def process_wpa_supplicant(pipe, options, data):
     elif 'NL80211_CMD_DEL_STATION' in line:
         print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
     elif 'Trying to authenticate with' in line:
-        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ').replace(r'\"', '"').replace(r'\x20', ' ')
+        if 'SSID' in line: options.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
         print('[*] Authenticating...')
     elif 'Authentication response' in line:
         print('[+] Authenticated')
     elif 'Trying to associate with' in line:
-        if 'SSID' in line: options.essid = line.split("'")[1].replace(r'\xc2\xa0', ' ').replace(r'\"', '"').replace(r'\x20', ' ')
+        if 'SSID' in line: options.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
         print('[*] Associating with AP...')
     elif 'Associated with' in line and options.interface in line:
         if options.essid:
@@ -264,7 +264,8 @@ def wifi_scan(iface):
         networks[-1]['BSSID'] = result.group(1).upper()
 
     def handle_essid(line, result, networks):
-        networks[-1]['ESSID'] = result.group(1).replace(r'\xc2\xa0', ' ').replace(r'\x20', ' ')
+        d = result.group(1)
+        networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
 
     def handle_level(line, result, networks):
         networks[-1]['Level'] = int(float(result.group(1)))
@@ -298,13 +299,16 @@ def wifi_scan(iface):
             networks[-1]['WPS locked'] = True
 
     def handle_model(line, result, networks):
-        networks[-1]['Model'] = result.group(1)
+        d = result.group(1)
+        networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
 
     def handle_modelNumber(line, result, networks):
-        networks[-1]['Model number'] = result.group(1)
+        d = result.group(1)
+        networks[-1]['Model number'] =  codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
 
     def handle_deviceName(line, result, networks):
-        networks[-1]['Device name'] = result.group(1)
+        d = result.group(1)
+        networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
 
     cmd = 'iw dev {} scan'.format(iface)
     proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,

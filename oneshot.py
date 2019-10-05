@@ -343,7 +343,7 @@ def wifi_scan(iface):
     return networks
 
 
-def scanner_pretty_print(networks, vuln_list):
+def scanner_pretty_print(networks, vuln_list=[]):
     '''Printing WiFiScan result as table'''
     def truncateStr(s, l):
         '''

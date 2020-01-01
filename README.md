@@ -37,6 +37,20 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
+## Arch Linux
+**Installing requirements**
+ ```
+ sudo pacman -S wpa_supplicant pixiewps wget python
+ ```
+**Getting OneShot**
+ ```
+ cd ~
+ wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
+ ```
+Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
+ ```
+ wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
+ ```
 
 # Usage
 ```

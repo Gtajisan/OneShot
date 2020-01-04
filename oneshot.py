@@ -621,6 +621,35 @@ def suggest_network(options, vuln_list):
             break
 
 
+def suggest_wpspin(options):
+    pins = wpsGen.getSuggested(options.bssid)
+    if len(pins) > 1:
+        print('WPS PIN list:')
+        print('{:<3} {:<10} {:<}'.format('#', 'PIN', 'Name'))
+        for i, pin in enumerate(pins):
+            number = '{})'.format(i + 1)
+            line = '{:<3} {:<10} {:<}'.format(
+                number, pin['pin'], pin['name'])
+            print(line)
+        while 1:
+            pinNo = input('Select target: ')
+            try:
+                if int(pinNo) in range(1, len(pins)+1):
+                    options.pin = pins[int(pinNo) - 1]['pin']
+                else:
+                    raise IndexError
+            except Exception:
+                print('Invalid number')
+            else:
+                break
+    elif len(pins) == 1:
+        pin = pins[0]
+        print('The only probable pin code is selected:', pin['name'])
+        options.pin = pin['pin']
+    else:
+        options.pin = '12345670'
+
+
 def parse_pixiewps(output):
     lines = output.splitlines()
     for line in lines:
@@ -683,8 +712,6 @@ if __name__ == '__main__':
         die("Run it as root")
     if not options.interface:
         die("Please specify interface name (-i) (use --help for usage)")
-    if options.pin is None:
-        options.pin = '12345670'
     if not ifaceUp(options.interface):
         die('Unable to up interface "{}"'.format(options.interface))
     if not options.bssid:
@@ -699,10 +726,16 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             ifaceUp(options.interface, down=True)
             die('\nAborting...')
+    if options.pin is None:
+        if options.pixiemode:
+            suggested_pins = wpsGen.getSuggestedList(options.bssid)
+            if suggested_pins:
+                options.pin = suggested_pins[0]
+            else:
+                options.pin = '12345670'
+        else:
+            suggest_wpspin(options)
 
-    suggested_pins = wpsGen.getSuggestedList(options.bssid)
-    if suggested_pins:
-        options.pin = suggested_pins[0]
 
     data = Data()
     connect(options, data)

@@ -1,4 +1,5 @@
 ADSL RT2860
+Archer A5 4.0
 Archer C5 4.0
 Archer C20 1.0
 Archer C20 4.0

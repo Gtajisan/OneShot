@@ -93,7 +93,6 @@ class WPSpin(object):
         pin = str(pin) + str(self.checksum(pin))
         return pin.zfill(8)
 
-
     def getSuggested(self, mac):
         '''
         Get all suggested WPS pin's for single MAC
@@ -577,16 +576,14 @@ def scanner_pretty_print(networks, vuln_list=[]):
         else:
             return text
         return text
-
-    print(colored('Green', color='green'), '— possible vulnerable network',
-          '\n' + colored('Red', color='red'), '— WPS locked',
-          '\nNetworks list:')
+    if vuln_list:
+        print(colored('Green', color='green'), '— possible vulnerable network',
+              '\n' + colored('Red', color='red'), '— WPS locked')
+    print('Networks list:')
     print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
         '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
-    for i in range(0, len(networks)):
-        n = i + 1
-        number = '{})'.format(n)
-        network = networks[i]
+    for i, network in enumerate(networks):
+        number = '{})'.format(i + 1)
         model = '{} {}'.format(network['Model'], network['Model number'])
         essid = truncateStr(network['ESSID'], 25)
         deviceName = truncateStr(network['Device name'], 27)
@@ -611,7 +608,9 @@ def suggest_network(options, vuln_list):
     while 1:
         networkNo = input('Select target: ')
         try:
-            if int(networkNo) in range(1, len(networks)+1):
+            if networkNo.lower() == 'r':
+                return suggest_network(options, vuln_list)
+            elif int(networkNo) in range(1, len(networks)+1):
                 options.bssid = networks[int(networkNo) - 1]['BSSID']
             else:
                 raise IndexError
@@ -735,7 +734,6 @@ if __name__ == '__main__':
                 options.pin = '12345670'
         else:
             suggest_wpspin(options)
-
 
     data = Data()
     connect(options, data)

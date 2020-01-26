@@ -44,8 +44,26 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
 **Getting OneShot**
  ```
- cd ~
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
+ ```
+Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
+ ```
+ wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
+ ```
+ ## Alpine Linux
+It can also be used to run on Android devices using [Linux Deploy](https://play.google.com/store/apps/details?id=ru.meefik.linuxdeploy)
+
+**Installing requirements**  
+Adding the testing repository:
+ ```
+ sudo sh -c 'echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing/" >> /etc/apk/repositories'
+ ```
+ ```
+ sudo apk add python3 wpa_supplicant pixiewps iw
+ ```
+ **Getting OneShot**
+ ```
+ sudo wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
  ```
 Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
  ```

@@ -12,6 +12,7 @@ Home Internet Center KEENETIC series
 Home Internet Center Keenetic series
 JWNR2000v2(Wireless AP) JWNR2000v2
 Keenetic Keenetic series
+Linksys Wireless Router WRT110
 Ralink Wireless Access Point RT2860
 RTL8xxx EV-2010-09-20
 Tenda 123456
@@ -33,7 +34,10 @@ Trendnet router TEW-651br
 Wireless WPS Router <#ZVMODELVZ#>
 Wireless WPS Router RT-N10E
 Wireless WPS Router RT-N12E
+WPS Router RT-AC750
+WPS Router RT-AC1200
 WPS Router RT-AC51U
 WPS Router RT-N11P
+WPS Router RT-N12+
 WPS Router RT-N56U
 WPS Router RT-N300

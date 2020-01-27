@@ -67,7 +67,7 @@ Adding the testing repository:
  ```
 Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
  ```
- wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
+ sudo wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
 
 # Usage

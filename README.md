@@ -97,5 +97,6 @@ Show avaliable networks and start Pixie Dust attack on a specified network:
 
 # Acknowledgements
 ## Special Thanks
+* `rofl0r` for initial implementation;
 * `Monohrom` for testing, help in catching bugs, some ideas;
 * `Wiire` for developing Pixiewps.

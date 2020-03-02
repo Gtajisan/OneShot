@@ -8,7 +8,7 @@
  - [Pixiewps](https://github.com/wiire-a/pixiewps);
  - [iw](https://wireless.wiki.kernel.org/en/users/documentation/iw).
 # Features
- - [Pixie Dust attack](https://forums.kali.org/showthread.php?24286-WPS-Pixie-Dust-Attack-Offline-WPS-Attack) ;
+ - [Pixie Dust attack](https://forums.kali.org/showthread.php?24286-WPS-Pixie-Dust-Attack-Offline-WPS-Attack);
  - integrated [3WiFi offline WPS PIN generator](https://3wifi.stascorp.com/wpspin);
  - [online WPS bruteforce](https://sviehb.files.wordpress.com/2011/12/viehboeck_wps.pdf);
  - Wi-Fi scanner with highlighting based on iw;
@@ -55,7 +55,7 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
- ## Alpine Linux
+## Alpine Linux
 It can also be used to run on Android devices using [Linux Deploy](https://play.google.com/store/apps/details?id=ru.meefik.linuxdeploy)
 
 **Installing requirements**  
@@ -74,23 +74,74 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
  sudo wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
+## [Termux](https://play.google.com/store/apps/details?id=com.termux)
+Please note that root access is required.  
+
+**Building wpa_supplicant**
+ ```
+ pkg install wget build-essential pkg-config libnl openssl
+ wget https://www.w1.fi/releases/wpa_supplicant-2.9.tar.gz && tar xvf wpa_supplicant-2.9.tar.gz
+ cd wpa_supplicant-2.9/wpa_supplicant/
+ cp defconfig .config
+ ```
+Open `.config` and comment following lines:
+ ```
+ CONFIG_DRIVER_WEXT=y
+ CONFIG_SAE=y
+ CONFIG_CTRL_IFACE_DBUS_NEW=y
+ CONFIG_DEBUG_FILE=y
+ CONFIG_DEBUG_SYSLOG=y
+ ```
+ ```
+ make
+ cp wpa_supplicant $PREFIX/bin/
+ chmod +x $PREFIX/bin/wpa_supplicant
+ ```
+**Building Pixiewps**
+ ```
+ wget https://github.com/wiire-a/pixiewps/archive/master.zip && unzip master.zip
+ cd pixiewps*/
+ make && make install
+ ```
+**Installing OneShot**
+ ```
+ pkg install root-repo
+ pkg install python iw
+ ```
+ ```
+ wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
+ ```
+Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
+ ```
+ wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
+ ```
+Running:
+ ```
+ tsudo python oneshot.py -i wlan0 -K
+ ```
 
 # Usage
 ```
  oneshot.py <arguments>
- Required Arguments:
-    -i, --interface=<wlan0>  : Name of the interface to use
+ Required arguments:
+     -i, --interface=<wlan0>  : Name of the interface to use
 
-Optional Arguments:
-    -b, --bssid=<mac>        : BSSID of the target AP
-    -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
-    -K, --pixie-dust         : Run Pixie Dust attack
-    -F, --force              : Run Pixiewps with --force option (bruteforce full range)
-    -X                       : Alway print Pixiewps command
-    -v                       : Verbose output
+ Optional arguments:
+     -b, --bssid=<mac>        : BSSID of the target AP
+     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
+     -K, --pixie-dust         : Run Pixie Dust attack
+     -B, --bruteforce         : Run online bruteforce attack
+
+ Advanced arguments:
+     -d, --delay=<n>          : Set the delay between pin attempts for bruteforce attack [0]
+     -w, --write              : Write AP credentials to the file on success
+     -F, --pixie-force        : Run Pixiewps with --force option (bruteforce full range)
+     -X, --show-pixie-cmd     : Alway print Pixiewps command
+     --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
+     -v, --verbose            : Verbose output
  ```
 
-## Usage example
+## Usage examples
 Start Pixie Dust attack on a specified BSSID:
  ```
  sudo python3 oneshot.py -i wlan0 -b 00:90:4C:C1:AC:21 -K
@@ -98,6 +149,10 @@ Start Pixie Dust attack on a specified BSSID:
 Show avaliable networks and start Pixie Dust attack on a specified network:
  ```
  sudo python3 oneshot.py -i wlan0 -K
+ ```
+Launch online WPS bruteforce with the specified first half of the PIN:
+ ```
+ sudo python3 oneshot.py -i wlan0 -b 00:90:4C:C1:AC:21 -B -p 1234
  ```
 
 # Acknowledgements

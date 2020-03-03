@@ -106,7 +106,7 @@ Open `.config` and comment following lines:
 **Installing OneShot**
  ```
  pkg install root-repo
- pkg install python iw
+ pkg install tsu python iw
  ```
  ```
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py

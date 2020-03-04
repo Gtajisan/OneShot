@@ -454,11 +454,8 @@ class Companion(object):
             datetime.now().strftime("%d-%m-%Y_%I-%M_%p")
         )
         with open(filename, 'w', encoding='utf-8') as file:
-            file.write('BSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}'.format(
-                        bssid,
-                        essid,
-                        wps_pin,
-                        wpa_psk
+            file.write('BSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}\n'.format(
+                        bssid, essid, wps_pin, wpa_psk
                     )
             )
         print(f'[i] Credentials saved to {filename}')
@@ -840,7 +837,7 @@ Optional arguments:
     -B, --bruteforce         : Run online bruteforce attack
 
 Advanced arguments:
-    -d, --delay=<n>          : Set the delay between pin attempts for bruteforce attack [0]
+    -d, --delay=<n>          : Set the delay between pin attempts [0]
     -w, --write              : Write AP credentials to the file on success
     -F, --pixie-force        : Run Pixiewps with --force option (bruteforce full range)
     -X, --show-pixie-cmd     : Alway print Pixiewps command

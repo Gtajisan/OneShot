@@ -400,7 +400,7 @@ class Companion(object):
                 print('[*] Scanning…')
         elif 'WPS-FAIL' in line:
             self.connection_status.status = 'WPS_FAIL'
-            print('[-] WPS-FAIL error')
+            print('[-] wpa_supplicant returned WPS-FAIL')
 #        elif 'NL80211_CMD_DEL_STATION' in line:
 #            print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
         elif 'Trying to authenticate with' in line:
@@ -463,6 +463,35 @@ class Companion(object):
             )
         print(f'[i] Credentials saved to {filename}')
 
+    def __prompt_wpspin(self, bssid):
+        pins = self.generator.getSuggested(bssid)
+        if len(pins) > 1:
+            print(f'PINs generated for {bssid}:')
+            print('{:<3} {:<10} {:<}'.format('#', 'PIN', 'Name'))
+            for i, pin in enumerate(pins):
+                number = '{})'.format(i + 1)
+                line = '{:<3} {:<10} {:<}'.format(
+                    number, pin['pin'], pin['name'])
+                print(line)
+            while 1:
+                pinNo = input('Select the PIN: ')
+                try:
+                    if int(pinNo) in range(1, len(pins)+1):
+                        pin = pins[int(pinNo) - 1]['pin']
+                    else:
+                        raise IndexError
+                except Exception:
+                    print('Invalid number')
+                else:
+                    break
+        elif len(pins) == 1:
+            pin = pins[0]
+            print('[i] The only probable PIN is selected:', pin['name'])
+            pin = pin['pin']
+        else:
+            return None
+        return pin
+
     def __wps_connection(self, bssid, pin, pixiemode=False, verbose=None):
         if not verbose:
             verbose = self.print_debug
@@ -492,7 +521,10 @@ class Companion(object):
 
     def single_connection(self, bssid, pin=None, pixiemode=False, showpixiecmd=False, pixieforce=False, raise_kbrdinterr=False):
         if not pin:
-            pin = self.generator.getLikely(bssid) or '12345670'
+            if pixiemode:
+                pin = self.generator.getLikely(bssid) or '12345670'
+            else:
+                pin = self.__prompt_wpspin(bssid) or '12345670'
         try:
             self.__wps_connection(bssid, pin, pixiemode)
             if self.connection_status.status == 'GOT_PSK':
@@ -759,7 +791,7 @@ class WiFiScanner(object):
 
         return networks
 
-    def suggest_network(self):
+    def prompt_network(self):
         networks = self.iw_scanner()
         if not networks:
             print('[-] No networks found.')
@@ -768,7 +800,7 @@ class WiFiScanner(object):
             try:
                 networkNo = input('Select target ("r" for refresh): ')
                 if networkNo.lower() == 'r':
-                    return self.suggest_network()
+                    return self.prompt_network()
                 elif int(networkNo) in range(1, len(networks) + 1):
                     return networks[int(networkNo) - 1]['BSSID']
                 else:
@@ -788,43 +820,11 @@ def ifaceUp(iface, down=False):
     else:
         action = 'up'
     cmd = 'ip link set {} {}'.format(iface, action)
-    res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+    res = subprocess.run(cmd, shell=True, stdout=sys.stdout, stderr=sys.stdout)
     if res.returncode == 0:
         return True
     else:
         return False
-
-
-# Not implemented yet
-'''
-def suggest_wpspin(options):
-    pins = wpsGen.getSuggested(options.bssid)
-    if len(pins) > 1:
-        print('WPS PIN list:')
-        print('{:<3} {:<10} {:<}'.format('#', 'PIN', 'Name'))
-        for i, pin in enumerate(pins):
-            number = '{})'.format(i + 1)
-            line = '{:<3} {:<10} {:<}'.format(
-                number, pin['pin'], pin['name'])
-            print(line)
-        while 1:
-            pinNo = input('Select target: ')
-            try:
-                if int(pinNo) in range(1, len(pins)+1):
-                    options.pin = pins[int(pinNo) - 1]['pin']
-                else:
-                    raise IndexError
-            except Exception:
-                print('Invalid number')
-            else:
-                break
-    elif len(pins) == 1:
-        pin = pins[0]
-        print('[i] The only probable pin code is selected:', pin['name'])
-        options.pin = pin['pin']
-    else:
-        options.pin = '12345670'
-'''
 
 
 def die(msg):
@@ -926,15 +926,18 @@ if __name__ == '__main__':
         help='Use custom file with vulnerable devices list'
         )
 
-    args = parser.parse_args()
-
+    if sys.hexversion < 0x03060F0:
+        die("The program requires Python 3.6 and above")
     if os.getuid() != 0:
         die("Run it as root")
+
+    args = parser.parse_args()
 
     if not ifaceUp(args.interface):
         die('Unable to up interface "{}"'.format(args.interface))
 
     companion = Companion(args.interface, args.write, print_debug=args.verbose)
+
     if not args.bssid:
         try:
             with open(args.vuln_list, 'r', encoding='utf-8') as file:
@@ -943,12 +946,13 @@ if __name__ == '__main__':
             vuln_list = []
         scanner = WiFiScanner(args.interface, companion, vuln_list)
         print('[*] BSSID not specified (--bssid) — scanning for available networks')
-        args.bssid = scanner.suggest_network()
-        if not args.bssid:
-            exit()
+        args.bssid = scanner.prompt_network()
 
-    if args.bruteforce:
-        companion.smart_bruteforce(args.bssid, args.pin, args.delay)
-    else:
-        companion.single_connection(args.bssid, args.pin, args.pixie_dust,
-                                    args.show_pixie_cmd, args.pixie_force)
+    if args.bssid:
+        if args.bruteforce:
+            companion.smart_bruteforce(args.bssid, args.pin, args.delay)
+        else:
+            companion.single_connection(args.bssid, args.pin, args.pixie_dust,
+                                        args.show_pixie_cmd, args.pixie_force)
+
+    ifaceUp(args.interface, down=True)

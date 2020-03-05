@@ -318,12 +318,6 @@ class Companion(object):
         self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
         recvuntil(self.wpas, f'{self.interface}: Added interface {self.interface}')
 
-    def shellcmd(self, cmd):
-        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, encoding='utf-8')
-        result = proc.stdout.read()
-        proc.wait()
-        return result
-
     def sendOnly(self, msg):
         '''Sends msg to wpa_supplicant'''
         self.retsock.sendto(msg.encode(), self.wpas_ctrl_path)
@@ -433,10 +427,10 @@ class Companion(object):
         if showcmd:
             print(cmd)
         print("[*] Running Pixiewps…")
-        r = self.shellcmd(cmd)
-        print(r)
-        if cmd.returncode == 0:
-            lines = r.splitlines()
+        r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=sys.stdout, encoding='utf-8')
+        print(r.stdout)
+        if r.returncode == 0:
+            lines = r.stdout.splitlines()
             for line in lines:
                 if ('[+]' in line) and ('WPS pin' in line):
                     pin = line.split(':')[-1].strip()

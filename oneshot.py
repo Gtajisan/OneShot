@@ -491,7 +491,7 @@ class Companion(object):
             verbose = self.print_debug
         self.pixie_creds.clear()
         self.connection_status.clear()
-        self.wpas.stdout.read(150)   # Clean the pipe
+        self.wpas.stdout.read(300)   # Clean the pipe
         print(f"[*] Trying PIN '{pin}'…")
         r = self.sendAndReceive(f'WPS_REG {bssid} {pin}')
         if 'OK' not in r:

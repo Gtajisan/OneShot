@@ -11,7 +11,8 @@ import socket
 import pathlib
 import time
 from datetime import datetime
-
+import collections
+import statistics
 
 class WPSException(Exception):
     pass
@@ -281,6 +282,38 @@ class ConnectionStatus():
         self.__init__()
 
 
+class BruteforceStatus():
+    def __init__(self):
+        self.start_time = datetime.now().strftime("%Y-%m-%d %I:%M:%S")
+        self.mask = ''
+        self.last_attempt_time = time.time()   # Last PIN attempt start time
+        self.attempts_times = collections.deque(maxlen=15)
+
+        self.counter = 0
+        self.statistics_period = 5
+
+    def display_status(self):
+        average_pin_time = statistics.mean(self.attempts_times)
+        if len(self.mask) == 4:
+            percentage = int(self.mask) / 11000 * 100
+        else:
+            percentage = (10000 / 11000) + (int(pin[4:]) / 11000) * 100
+        print('[*] {:.2f}% complete @ {} ({:.2f} seconds/pin)'.format(percentage, self.start_time, average_pin_time))
+
+    def registerAttempt(self, mask):
+        self.mask = mask
+        self.counter += 1
+        current_time = time.time()
+        self.attempts_times.append(current_time - self.last_attempt_time)
+        self.last_attempt_time = current_time
+        if self.counter == self.statistics_period:
+            self.counter = 0
+            self.display_status()
+
+    def cleat(self):
+        self.__init__()
+
+
 class Companion(object):
     """docstring for Companion"""
     def __init__(self, interface, save_result=False, print_debug=False):
@@ -309,8 +342,6 @@ class Companion(object):
             os.makedirs(self.save_dir + 'sessions')
 
         self.generator = WPSpin()
-
-        self.bruteforce_persist = ''
 
     def __init_wpa_supplicant(self):
         print('[*] Running wpa_supplicant…')
@@ -553,7 +584,7 @@ class Companion(object):
                 print('[!] WPS transaction failed, re-trying last pin')
                 return self.__first_half_bruteforce(bssid, f_half)
             f_half = str(int(f_half) + 1).zfill(4)
-            self.bruteforce_persist = f_half
+            self.bruteforce.registerAttempt(f_half)
             if delay:
                 time.sleep(delay)
         print('[-] First half not found')
@@ -575,7 +606,7 @@ class Companion(object):
                 print('[!] WPS transaction failed, re-trying last pin')
                 return self.__second_half_bruteforce(bssid, f_half, s_half)
             s_half = str(int(s_half) + 1).zfill(3)
-            self.bruteforce_persist = f_half + s_half
+            self.bruteforce.registerAttempt(f_half + s_half)
             if delay:
                 time.sleep(delay)
         return False
@@ -597,7 +628,8 @@ class Companion(object):
             mask = start_pin[:7]
 
         try:
-            self.bruteforce_persist = mask
+            self.bruteforce = BruteforceStatus()
+            self.bruteforce.mask = mask
             if len(mask) == 4:
                 f_half = self.__first_half_bruteforce(bssid, mask, delay)
                 if f_half:
@@ -612,7 +644,7 @@ class Companion(object):
             path = self.save_dir + 'sessions/'
             filename = path + '{}.run'.format(bssid.replace(':', '').upper())
             with open(filename, 'w') as file:
-                file.write(self.bruteforce_persist)
+                file.write(self.bruteforce.mask)
             print('[i] Session saved in {}'.format(filename))
 
     def cleanup(self):

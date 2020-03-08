@@ -892,7 +892,7 @@ if __name__ == '__main__':
         )
     parser.add_argument(
         '-d', '--delay',
-        type=int,
+        type=float,
         help='Set the delay between pin attempts'
         )
     parser.add_argument(

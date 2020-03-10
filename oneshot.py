@@ -374,7 +374,7 @@ class Companion(object):
 
         if line.startswith('WPS: '):
             if 'Building Message M' in line:
-                n = int(line.split('Building Message M')[1])
+                n = int(line.split('Building Message M')[1].replace('D', ''))
                 self.connection_status.last_m_message = n
                 print('[*] Sending WPS Message M{}…'.format(n))
             elif 'Received M' in line:

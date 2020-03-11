@@ -284,7 +284,7 @@ class ConnectionStatus():
 
 class BruteforceStatus():
     def __init__(self):
-        self.start_time = datetime.now().strftime("%Y-%m-%d %I:%M:%S")
+        self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.mask = ''
         self.last_attempt_time = time.time()   # Last PIN attempt start time
         self.attempts_times = collections.deque(maxlen=15)
@@ -479,7 +479,7 @@ class Companion(object):
         path = self.save_dir + 'reports/'
         filename = path + '{}-{}.txt'.format(
             bssid.replace(":", ""),
-            datetime.now().strftime("%d-%m-%Y_%I-%M_%p")
+            datetime.now().strftime("%d-%m-%Y_%H-%M_%p")
         )
         with open(filename, 'w', encoding='utf-8') as file:
             file.write('BSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}\n'.format(

@@ -297,7 +297,7 @@ class BruteforceStatus():
         if len(self.mask) == 4:
             percentage = int(self.mask) / 11000 * 100
         else:
-            percentage = (10000 / 11000) + (int(pin[4:]) / 11000) * 100
+            percentage = ((10000 / 11000) + (int(self.mask[4:]) / 11000)) * 100
         print('[*] {:.2f}% complete @ {} ({:.2f} seconds/pin)'.format(percentage, self.start_time, average_pin_time))
 
     def registerAttempt(self, mask):

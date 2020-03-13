@@ -35,6 +35,7 @@ Wireless WPS Router <#ZVMODELVZ#>
 Wireless WPS Router RT-N10E
 Wireless WPS Router RT-N12E
 WPS Router RT-AC750
+WPS Router RT-AC1750
 WPS Router RT-AC1200
 WPS Router RT-AC51U
 WPS Router RT-N11P

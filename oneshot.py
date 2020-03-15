@@ -341,10 +341,12 @@ class Companion(object):
         self.connection_status = ConnectionStatus()
 
         user_home = str(pathlib.Path.home())
-        self.save_dir = f'{user_home}/.OneShot/'
-        if not os.path.exists(self.save_dir):
-            os.makedirs(self.save_dir + 'reports')
-            os.makedirs(self.save_dir + 'sessions')
+        self.sessions_dir = f'{user_home}/.OneShot/sessions/'
+        self.reports_dir = os.path.dirname(os.path.realpath(__file__)) + '/reports/'
+        if not os.path.exists(self.sessions_dir):
+            os.makedirs(self.sessions_dir)
+        if not os.path.exists(self.reports_dir):
+            os.makedirs(self.reports_dir)
 
         self.generator = WPSpin()
 
@@ -486,8 +488,7 @@ class Companion(object):
         print(f"[+] AP SSID: '{essid}'")
 
     def __saveResult(self, bssid, essid, wps_pin, wpa_psk):
-        path = self.save_dir + 'reports/'
-        filename = path + '{}-{}.txt'.format(
+        filename = self.reports_dir + '{}-{}.txt'.format(
             bssid.replace(":", ""),
             datetime.now().strftime("%d-%m-%Y_%H-%M_%p")
         )
@@ -625,8 +626,7 @@ class Companion(object):
         if (not start_pin) or (len(start_pin) < 4):
             # Trying to restore previous session
             try:
-                path = self.save_dir + 'sessions/'
-                filename = path + '{}.run'.format(bssid.replace(':', '').upper())
+                filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
                 with open(filename, 'r') as file:
                     if input('[?] Restore previous session for {}? [n/Y] '.format(bssid)).lower() != 'n':
                         mask = file.readline().strip()
@@ -651,8 +651,7 @@ class Companion(object):
             raise KeyboardInterrupt
         except KeyboardInterrupt:
             print("\nAborting…")
-            path = self.save_dir + 'sessions/'
-            filename = path + '{}.run'.format(bssid.replace(':', '').upper())
+            filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
             with open(filename, 'w') as file:
                 file.write(self.bruteforce.mask)
             print('[i] Session saved in {}'.format(filename))

@@ -642,8 +642,8 @@ class Companion(object):
             self.bruteforce.mask = mask
             if len(mask) == 4:
                 f_half = self.__first_half_bruteforce(bssid, mask, delay)
-                if f_half:
-                    self.__second_half_bruteforce(bssid, f_half, '000', delay)
+                if f_half and (self.connection_status.status != 'GOT_PSK'):
+                    self.__second_half_bruteforce(bssid, f_half, '001', delay)
             elif len(mask) == 7:
                 f_half = mask[:4]
                 s_half = mask[4:]

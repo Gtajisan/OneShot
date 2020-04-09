@@ -756,7 +756,8 @@ class WiFiScanner(object):
         }
 
         for line in lines:
-            if 'No such device' in line:
+            if line.startswith('command failed:'):
+                print('[!] Error:', line)
                 return False
             line = line.strip('\t')
             for regexp, handler in matchers.items():

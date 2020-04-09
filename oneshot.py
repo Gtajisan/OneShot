@@ -880,6 +880,7 @@ Advanced arguments:
     -F, --pixie-force        : Run Pixiewps with --force option (bruteforce full range)
     -X, --show-pixie-cmd     : Alway print Pixiewps command
     --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
+    --iface-down             : Down network interface when the work is finished
     -v, --verbose            : Verbose output
 
 Example:
@@ -942,6 +943,11 @@ if __name__ == '__main__':
         help='Write credentials to the file on success'
         )
     parser.add_argument(
+        '--iface-down',
+        action='store_true',
+        help='Down network interface when the work is finished'
+        )
+    parser.add_argument(
         '-v', '--verbose',
         action='store_true',
         help='Verbose output'
@@ -953,12 +959,13 @@ if __name__ == '__main__':
         help='Use custom file with vulnerable devices list'
         )
 
+    args = parser.parse_args()
+
     if sys.hexversion < 0x03060F0:
         die("The program requires Python 3.6 and above")
     if os.getuid() != 0:
         die("Run it as root")
 
-    args = parser.parse_args()
 
     if not ifaceUp(args.interface):
         die('Unable to up interface "{}"'.format(args.interface))
@@ -985,4 +992,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\nAborting…")
 
-    ifaceUp(args.interface, down=True)
+    if args.iface_down:
+        ifaceUp(args.interface, down=True)

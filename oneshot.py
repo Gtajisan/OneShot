@@ -669,9 +669,8 @@ class Companion(object):
 
 class WiFiScanner(object):
     """docstring for WiFiScanner"""
-    def __init__(self, interface, companion, vuln_list=None):
+    def __init__(self, interface, vuln_list=None):
         self.interface = interface
-        self.companion = companion
         self.vuln_list = vuln_list
 
     def iw_scanner(self):
@@ -972,19 +971,18 @@ if __name__ == '__main__':
         die('Unable to up interface "{}"'.format(args.interface))
 
     try:
-        companion = Companion(args.interface, args.write, print_debug=args.verbose)
-
         if not args.bssid:
             try:
                 with open(args.vuln_list, 'r', encoding='utf-8') as file:
                     vuln_list = file.read().splitlines()
             except FileNotFoundError:
                 vuln_list = []
-            scanner = WiFiScanner(args.interface, companion, vuln_list)
+            scanner = WiFiScanner(args.interface, vuln_list)
             print('[*] BSSID not specified (--bssid) — scanning for available networks')
             args.bssid = scanner.prompt_network()
 
         if args.bssid:
+            companion = Companion(args.interface, args.write, print_debug=args.verbose)
             if args.bruteforce:
                 companion.smart_bruteforce(args.bssid, args.pin, args.delay)
             else:

@@ -354,7 +354,11 @@ class Companion(object):
         print('[*] Running wpa_supplicant…')
         cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(self.interface, self.tempconf)
         self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
-        recvuntil(self.wpas, f'{self.interface}: Added interface {self.interface}')
+        while True:
+            s = recvuntil(self.wpas, '\n')
+            if 'update_config=1' in s:
+                time.sleep(0.5)
+                break
 
     def sendOnly(self, msg):
         '''Sends msg to wpa_supplicant'''

@@ -13,12 +13,14 @@ Home Internet Center Keenetic series
 JWNR2000v2(Wireless AP) JWNR2000v2
 Keenetic Keenetic series
 Linksys Wireless Router WRT110
+N/A EV-2010-09-20
 Ralink Wireless Access Point RT2860
 RTL8196E
 RTL8xxx EV-2010-09-20
 Tenda 123456
 TD-W8901N RT2860
 TL-MR3020 3.0
+TL-MR6400 3.0
 TL-WR840N 4.0
 TL-WR840N 5.0
 TL-WR840N 6.0

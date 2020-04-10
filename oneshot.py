@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 import collections
 import statistics
+import csv
 
 
 class WPSException(Exception):
@@ -345,8 +346,6 @@ class Companion(object):
         self.reports_dir = os.path.dirname(os.path.realpath(__file__)) + '/reports/'
         if not os.path.exists(self.sessions_dir):
             os.makedirs(self.sessions_dir)
-        if not os.path.exists(self.reports_dir):
-            os.makedirs(self.reports_dir)
 
         self.generator = WPSpin()
 
@@ -490,16 +489,23 @@ class Companion(object):
         print(f"[+] AP SSID: '{essid}'")
 
     def __saveResult(self, bssid, essid, wps_pin, wpa_psk):
-        filename = self.reports_dir + '{}-{}.txt'.format(
-            bssid.replace(":", ""),
-            datetime.now().strftime("%d-%m-%Y_%H-%M_%p")
-        )
-        with open(filename, 'w', encoding='utf-8') as file:
-            file.write('BSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}\n'.format(
-                        bssid, essid, wps_pin, wpa_psk
+        if not os.path.exists(self.reports_dir):
+            os.makedirs(self.reports_dir)
+        filename = self.reports_dir + 'stored'
+        dateStr = datetime.now().strftime("%d.%m.%Y %H:%M")
+        with open(filename + '.txt', 'a', encoding='utf-8') as file:
+            file.write('{}\nBSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}\n\n'.format(
+                        dateStr, bssid, essid, wps_pin, wpa_psk
                     )
             )
-        print(f'[i] Credentials saved to {filename}')
+        print(filename)
+        writeTableHeader = not os.path.isfile(filename + '.csv')
+        with open(filename + '.csv', 'a', newline='', encoding='utf-8') as file:
+            csvWriter = csv.writer(file, delimiter=';', quoting=csv.QUOTE_ALL)
+            if writeTableHeader:
+                csvWriter.writerow(['Date', 'BSSID', 'ESSID', 'WPS PIN', 'WPA PSK'])
+            csvWriter.writerow([dateStr, bssid, essid, wps_pin, wpa_psk])
+        print(f'[i] Credentials saved to {filename}.txt, {filename}.csv')
 
     def __prompt_wpspin(self, bssid):
         pins = self.generator.getSuggested(bssid)
@@ -967,7 +973,6 @@ if __name__ == '__main__':
         die("The program requires Python 3.6 and above")
     if os.getuid() != 0:
         die("Run it as root")
-
 
     if not ifaceUp(args.interface):
         die('Unable to up interface "{}"'.format(args.interface))

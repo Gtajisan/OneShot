@@ -330,8 +330,8 @@ class Companion(object):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as temp:
             temp.write('ctrl_interface={}\nctrl_interface_group=root\nupdate_config=1\n'.format(self.tempdir))
             self.tempconf = temp.name
-        self.__init_wpa_supplicant()
         self.wpas_ctrl_path = f"{self.tempdir}/{interface}"
+        self.__init_wpa_supplicant()
 
         self.res_socket_file = f"{tempfile._get_default_tempdir()}/{next(tempfile._get_candidate_names())}"
         self.retsock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -354,11 +354,9 @@ class Companion(object):
         print('[*] Running wpa_supplicant…')
         cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(self.interface, self.tempconf)
         self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
-        while True:
-            s = recvuntil(self.wpas, '\n')
-            if 'update_config=1' in s:
-                time.sleep(0.5)
-                break
+        # Waiting for wpa_supplicant control interface initialization
+        while not os.path.exists(self.wpas_ctrl_path):
+            pass
 
     def sendOnly(self, msg):
         '''Sends msg to wpa_supplicant'''

@@ -137,6 +137,7 @@ Running:
      -F, --pixie-force        : Run Pixiewps with --force option (bruteforce full range)
      -X, --show-pixie-cmd     : Alway print Pixiewps command
      --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
+     --iface-down             : Down network interface when the work is finished
      -v, --verbose            : Verbose output
  ```
 
@@ -153,7 +154,12 @@ Launch online WPS bruteforce with the specified first half of the PIN:
  ```
  sudo python3 oneshot.py -i wlan0 -b 00:90:4C:C1:AC:21 -B -p 1234
  ```
-
+## Troubleshooting
+#### "RTNETLINK answers: Operation not possible due to RF-kill"
+ Just run:
+```sudo rfkill unblock wifi```
+#### "Device or resource busy (-16)"
+ Try disabling Wi-Fi in the system settings and kill the Network manager. Alternatively, you can try running OneShot with ```--iface-down``` argument.
 # Acknowledgements
 ## Special Thanks
 * `rofl0r` for initial implementation;

@@ -316,7 +316,7 @@ class BruteforceStatus(object):
             self.counter = 0
             self.display_status()
 
-    def cleat(self):
+    def clear(self):
         self.__init__()
 
 

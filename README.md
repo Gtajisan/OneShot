@@ -76,25 +76,17 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
 ## [Termux](https://play.google.com/store/apps/details?id=com.termux)
 Please note that root access is required.  
 
-**Building wpa_supplicant**
+#### Using installer
  ```
- pkg install wget build-essential pkg-config libnl openssl
- wget https://www.w1.fi/releases/wpa_supplicant-2.9.tar.gz && tar xvf wpa_supplicant-2.9.tar.gz
- cd wpa_supplicant-2.9/wpa_supplicant/
- cp defconfig .config
+ pkg install -y wget
+ wget https://raw.githubusercontent.com/drygdryg/OneShot_Termux_installer/master/installer.sh
+ bash installer.sh
  ```
-Open `.config` and comment following lines:
+#### Manually
+**Installing requirements**
  ```
- CONFIG_DRIVER_WEXT=y
- CONFIG_SAE=y
- CONFIG_CTRL_IFACE_DBUS_NEW=y
- CONFIG_DEBUG_FILE=y
- CONFIG_DEBUG_SYSLOG=y
- ```
- ```
- make
- cp wpa_supplicant $PREFIX/bin/
- chmod +x $PREFIX/bin/wpa_supplicant
+ pkg install root-repo
+ pkg install wget build-essential wpa-supplicant tsu python iw
  ```
 **Building Pixiewps**
  ```
@@ -102,11 +94,7 @@ Open `.config` and comment following lines:
  cd pixiewps*/
  make && make install
  ```
-**Installing OneShot**
- ```
- pkg install root-repo
- pkg install tsu python iw
- ```
+**Getting OneShot**
  ```
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
  ```
@@ -114,9 +102,9 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
  wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
-Running:
+#### Running
  ```
- tsudo python oneshot.py -i wlan0 -K
+ tsudo python oneshot.py -i wlan0 --iface-down -K
  ```
 
 # Usage

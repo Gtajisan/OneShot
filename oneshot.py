@@ -498,7 +498,6 @@ class Companion(object):
                         dateStr, bssid, essid, wps_pin, wpa_psk
                     )
             )
-        print(filename)
         writeTableHeader = not os.path.isfile(filename + '.csv')
         with open(filename + '.csv', 'a', newline='', encoding='utf-8') as file:
             csvWriter = csv.writer(file, delimiter=';', quoting=csv.QUOTE_ALL)

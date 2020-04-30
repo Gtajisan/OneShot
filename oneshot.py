@@ -680,6 +680,23 @@ class WiFiScanner(object):
         self.interface = interface
         self.vuln_list = vuln_list
 
+        reports_fname = os.path.dirname(os.path.realpath(__file__)) + '/reports/stored.csv'
+        try:
+            with open(reports_fname, 'r', newline='', encoding='utf-8') as file:
+                csvReader = csv.reader(file, delimiter=';', quoting=csv.QUOTE_ALL)
+                # Skip header
+                next(csvReader)
+                self.stored = []
+                for row in csvReader:
+                    self.stored.append(
+                        (
+                            row[1],   # BSSID
+                            row[2]    # ESSID
+                        )
+                    )
+        except FileNotFoundError:
+            self.stored = []
+
     def iw_scanner(self):
         '''Parsing iw scan results'''
         def handle_network(line, result, networks):
@@ -798,6 +815,8 @@ class WiFiScanner(object):
                     text = '\033[92m{}\033[00m'.format(text)
                 elif color == 'red':
                     text = '\033[91m{}\033[00m'.format(text)
+                elif color == 'yellow':
+                    text = '\033[93m{}\033[00m'.format(text)
                 else:
                     return text
             else:
@@ -805,7 +824,8 @@ class WiFiScanner(object):
             return text
         if vuln_list:
             print(colored('Green', color='green'), '— possible vulnerable network',
-                  '\n' + colored('Red', color='red'), '— WPS locked')
+                  '\n' + colored('Red', color='red'), '— WPS locked',
+                  '\n' + colored('Yellow', color='yellow'), '— already stored')
         print('Networks list:')
         print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
             '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
@@ -821,6 +841,8 @@ class WiFiScanner(object):
                 )
             if network['WPS locked']:
                 print(colored(line, color='red'))
+            elif (network['BSSID'], network['ESSID']) in self.stored:
+                print(colored(line, color='yellow'))
             elif vuln_list and (model in vuln_list):
                 print(colored(line, color='green'))
             else:

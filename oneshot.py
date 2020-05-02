@@ -343,9 +343,12 @@ class Companion(object):
 
         user_home = str(pathlib.Path.home())
         self.sessions_dir = f'{user_home}/.OneShot/sessions/'
+        self.pixiewps_dir = f'{user_home}/.OneShot/pixiewps/'
         self.reports_dir = os.path.dirname(os.path.realpath(__file__)) + '/reports/'
         if not os.path.exists(self.sessions_dir):
             os.makedirs(self.sessions_dir)
+        if not os.path.exists(self.pixiewps_dir):
+            os.makedirs(self.pixiewps_dir)
 
         self.generator = WPSpin()
 
@@ -562,28 +565,54 @@ class Companion(object):
         self.sendOnly('WPS_CANCEL')
         return False
 
-    def single_connection(self, bssid, pin=None, pixiemode=False, showpixiecmd=False, pixieforce=False):
+    def single_connection(self, bssid, pin=None, pixiemode=False, showpixiecmd=False,
+                          pixieforce=False, store_pin_on_fail=False):
         if not pin:
             if pixiemode:
-                pin = self.generator.getLikely(bssid) or '12345670'
+                try:
+                    # Try using the previous calculated PIN
+                    filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
+                    with open(filename, 'r') as file:
+                        t_pin = file.readline().strip()
+                        if input('[?] Use previous calculated PIN {}? [n/Y] '.format(t_pin)).lower() != 'n':
+                            pin = t_pin
+                        else:
+                            raise FileNotFoundError
+                except FileNotFoundError:
+                    pin = self.generator.getLikely(bssid) or '12345670'
             else:
+                # If not pixiemode, ask user to select a pin from the list
                 pin = self.__prompt_wpspin(bssid) or '12345670'
+
         self.__wps_connection(bssid, pin, pixiemode)
+
         if self.connection_status.status == 'GOT_PSK':
             self.__credentialPrint(pin, self.connection_status.wpa_psk, self.connection_status.essid)
             if self.save_result:
                 self.__saveResult(bssid, self.connection_status.essid, pin, self.connection_status.wpa_psk)
+            # Try to remove temporary PIN file
+            filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
+            try:
+                os.remove(filename)
+            except FileNotFoundError:
+                pass
             return True
         elif pixiemode:
             if self.pixie_creds.got_all():
                 pin = self.__runPixiewps(showpixiecmd, pixieforce)
                 if pin:
-                    return self.single_connection(bssid, pin, pixiemode=False)
+                    return self.single_connection(bssid, pin, pixiemode=False, store_pin_on_fail=True)
                 return False
             else:
                 print('[!] No enough data to run Pixie Dust attack')
                 return False
         else:
+            if store_pin_on_fail:
+                # Saving Pixiewps calculated PIN if can't connect
+                filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
+                with open(filename, 'w') as file:
+                    file.write(pin)
+                print('[i] PIN saved in {}'.format(filename))
             return False
 
     def __first_half_bruteforce(self, bssid, f_half, delay=None):

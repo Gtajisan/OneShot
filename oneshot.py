@@ -743,7 +743,7 @@ class WiFiScanner(object):
 
         def handle_essid(line, result, networks):
             d = result.group(1)
-            networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+            networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
 
         def handle_level(line, result, networks):
             networks[-1]['Level'] = int(float(result.group(1)))
@@ -778,15 +778,15 @@ class WiFiScanner(object):
 
         def handle_model(line, result, networks):
             d = result.group(1)
-            networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+            networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
 
         def handle_modelNumber(line, result, networks):
             d = result.group(1)
-            networks[-1]['Model number'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+            networks[-1]['Model number'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
 
         def handle_deviceName(line, result, networks):
             d = result.group(1)
-            networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8')
+            networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
 
         cmd = 'iw dev {} scan'.format(self.interface)
         proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,

@@ -360,13 +360,13 @@ class Companion(object):
         while not os.path.exists(self.wpas_ctrl_path):
             pass
 
-    def sendOnly(self, msg):
-        '''Sends msg to wpa_supplicant'''
-        self.retsock.sendto(msg.encode(), self.wpas_ctrl_path)
+    def sendOnly(self, command):
+        '''Sends command to wpa_supplicant'''
+        self.retsock.sendto(command.encode(), self.wpas_ctrl_path)
 
-    def sendAndReceive(self, msg):
-        '''Sends msg to wpa_supplicant and returns the reply'''
-        self.retsock.sendto(msg.encode(), self.wpas_ctrl_path)
+    def sendAndReceive(self, command):
+        '''Sends command to wpa_supplicant and returns the reply'''
+        self.retsock.sendto(command.encode(), self.wpas_ctrl_path)
         (b, address) = self.retsock.recvfrom(4096)
         inmsg = b.decode('utf-8')
         return inmsg

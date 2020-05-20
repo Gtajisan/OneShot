@@ -509,6 +509,12 @@ class Companion(object):
             csvWriter.writerow([dateStr, bssid, essid, wps_pin, wpa_psk])
         print(f'[i] Credentials saved to {filename}.txt, {filename}.csv')
 
+    def __savePin(self, bssid, pin):
+        filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
+        with open(filename, 'w') as file:
+            file.write(pin)
+        print('[i] PIN saved in {}'.format(filename))
+
     def __prompt_wpspin(self, bssid):
         pins = self.generator.getSuggested(bssid)
         if len(pins) > 1:
@@ -583,8 +589,13 @@ class Companion(object):
             else:
                 # If not pixiemode, ask user to select a pin from the list
                 pin = self.__prompt_wpspin(bssid) or '12345670'
-
-        self.__wps_connection(bssid, pin, pixiemode)
+        try:
+            self.__wps_connection(bssid, pin, pixiemode)
+        except KeyboardInterrupt:
+            print("\nAborting…")
+            if store_pin_on_fail:
+                self.__savePin(bssid, pin)
+            return False
 
         if self.connection_status.status == 'GOT_PSK':
             self.__credentialPrint(pin, self.connection_status.wpa_psk, self.connection_status.essid)
@@ -609,10 +620,7 @@ class Companion(object):
         else:
             if store_pin_on_fail:
                 # Saving Pixiewps calculated PIN if can't connect
-                filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
-                with open(filename, 'w') as file:
-                    file.write(pin)
-                print('[i] PIN saved in {}'.format(filename))
+                self.__savePin(bssid, pin)
             return False
 
     def __first_half_bruteforce(self, bssid, f_half, delay=None):

@@ -589,13 +589,16 @@ class Companion(object):
             else:
                 # If not pixiemode, ask user to select a pin from the list
                 pin = self.__prompt_wpspin(bssid) or '12345670'
-        try:
-            self.__wps_connection(bssid, pin, pixiemode)
-        except KeyboardInterrupt:
-            print("\nAborting…")
-            if store_pin_on_fail:
+
+        if store_pin_on_fail:
+            try:
+                self.__wps_connection(bssid, pin, pixiemode)
+            except KeyboardInterrupt:
+                print("\nAborting…")
                 self.__savePin(bssid, pin)
-            return False
+                return False
+        else:
+            self.__wps_connection(bssid, pin, pixiemode)
 
         if self.connection_status.status == 'GOT_PSK':
             self.__credentialPrint(pin, self.connection_status.wpa_psk, self.connection_status.essid)

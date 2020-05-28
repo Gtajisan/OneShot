@@ -104,7 +104,7 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
 #### Running
  ```
- tsudo python oneshot.py -i wlan0 --iface-down -K
+ sudo python oneshot.py -i wlan0 --iface-down -K
  ```
 
 # Usage

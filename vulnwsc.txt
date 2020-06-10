@@ -42,6 +42,7 @@ Wi-Fi Protected Setup Router RT-N12VP
 Wireless WPS Router <#ZVMODELVZ#>
 Wireless WPS Router RT-N10E
 Wireless WPS Router RT-N12E
+Wireless WPS Router RT-N12LX
 WPS Router RT-AC750
 WPS Router RT-AC1200
 WPS Router RT-AC1750

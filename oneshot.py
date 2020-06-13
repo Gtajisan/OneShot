@@ -16,11 +16,7 @@ import statistics
 import csv
 
 
-class WPSException(Exception):
-    pass
-
-
-class WPSpin(object):
+class WPSpin():
     '''WPS pin generator'''
     def __init__(self):
         self.ALGO_MAC = 0
@@ -92,7 +88,7 @@ class WPSpin(object):
         '''
         mac = self._parseMAC(mac)
         if algo not in self.algos:
-            raise WPSException('Invalid WPS pin algorithm')
+            raise ValueError('Invalid WPS pin algorithm')
         pin = self.algos[algo]['gen'](mac)
         if algo == 'pinEmpty':
             return pin
@@ -247,7 +243,7 @@ def get_hex(line):
     return a[2].replace(' ', '').upper()
 
 
-class PixiewpsData(object):
+class PixiewpsData():
     def __init__(self):
         self.pke = ''
         self.pkr = ''
@@ -273,7 +269,7 @@ class PixiewpsData(object):
         return pixiecmd
 
 
-class ConnectionStatus(object):
+class ConnectionStatus():
     def __init__(self):
         self.status = ''   # Must be WSC_NACK, WPS_FAIL or GOT_PSK
         self.last_m_message = 0
@@ -287,7 +283,7 @@ class ConnectionStatus(object):
         self.__init__()
 
 
-class BruteforceStatus(object):
+class BruteforceStatus():
     def __init__(self):
         self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.mask = ''
@@ -320,7 +316,7 @@ class BruteforceStatus(object):
         self.__init__()
 
 
-class Companion(object):
+class Companion():
     """Main application part"""
     def __init__(self, interface, save_result=False, print_debug=False):
         self.interface = interface
@@ -714,7 +710,7 @@ class Companion(object):
         self.cleanup()
 
 
-class WiFiScanner(object):
+class WiFiScanner():
     """docstring for WiFiScanner"""
     def __init__(self, interface, vuln_list=None):
         self.interface = interface
@@ -837,14 +833,14 @@ class WiFiScanner(object):
         networks.sort(key=lambda x: x['Level'], reverse=True)
 
         # Printing scanning results as table
-        def truncateStr(s, l, postfix='…'):
+        def truncateStr(s, length, postfix='…'):
             '''
             Truncate string with the specified length
             @s — input string
-            @l — length of output string
+            @llength — length of output string
             '''
-            if len(s) > l:
-                k = l - len(postfix)
+            if len(s) > length:
+                k = length - len(postfix)
                 s = s[:k] + postfix
             return s
 
@@ -962,7 +958,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(
         description='OneShotPin 0.0.2 (c) 2017 rofl0r, moded by drygdryg',
-        epilog='Example: {} -i wlan0 -b 00:90:4C:C1:AC:21 -K'.format(sys.argv[0])
+        epilog='Example: %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K'
         )
 
     parser.add_argument(

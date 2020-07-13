@@ -341,8 +341,8 @@ class PixiewpsData():
                 and self.e_hash1 and self.e_hash2)
 
     def get_pixie_cmd(self, full_range=False):
-        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {}\
-                    --e-hash2 {} --authkey {} --e-nonce {}".format(
+        pixiecmd = "pixiewps --pke {} --pkr {} --e-hash1 {}"\
+                    " --e-hash2 {} --authkey {} --e-nonce {}".format(
                     self.pke, self.pkr, self.e_hash1,
                     self.e_hash2, self.authkey, self.e_nonce)
         if full_range:
@@ -546,10 +546,10 @@ class Companion():
         return True
 
     def __runPixiewps(self, showcmd=False, full_range=False):
+        print("[*] Running Pixiewps…")
         cmd = self.pixie_creds.get_pixie_cmd(full_range)
         if showcmd:
             print(cmd)
-        print("[*] Running Pixiewps…")
         r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
                            stderr=sys.stdout, encoding='utf-8')
         print(r.stdout)

@@ -432,7 +432,8 @@ class Companion():
     def __init_wpa_supplicant(self):
         print('[*] Running wpa_supplicant…')
         cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(self.interface, self.tempconf)
-        self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
+        self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, encoding='utf-8', errors='replace')
         # Waiting for wpa_supplicant control interface initialization
         while not os.path.exists(self.wpas_ctrl_path):
             pass
@@ -445,7 +446,7 @@ class Companion():
         '''Sends command to wpa_supplicant and returns the reply'''
         self.retsock.sendto(command.encode(), self.wpas_ctrl_path)
         (b, address) = self.retsock.recvfrom(4096)
-        inmsg = b.decode('utf-8')
+        inmsg = b.decode('utf-8', errors='replace')
         return inmsg
 
     def __handle_wpas(self, pixiemode=False, verbose=None):
@@ -507,7 +508,7 @@ class Companion():
                     print('[P] E-Hash2: {}'.format(self.pixie_creds.e_hash2))
             elif 'Network Key' in line and 'hexdump' in line:
                 self.connection_status.status = 'GOT_PSK'
-                self.connection_status.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8')
+                self.connection_status.wpa_psk = bytes.fromhex(get_hex(line)).decode('utf-8', errors='replace')
         elif ': State: ' in line:
             if '-> SCANNING' in line:
                 self.connection_status.status = 'scanning'
@@ -520,14 +521,14 @@ class Companion():
         elif 'Trying to authenticate with' in line:
             self.connection_status.status = 'authenticating'
             if 'SSID' in line:
-                self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
+                self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
             print('[*] Authenticating…')
         elif 'Authentication response' in line:
             print('[+] Authenticated')
         elif 'Trying to associate with' in line:
             self.connection_status.status = 'associating'
             if 'SSID' in line:
-                self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
+                self.connection_status.essid = codecs.decode(line.split("'")[1], 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
             print('[*] Associating with AP…')
         elif ('Associated with' in line) and (self.interface in line):
             bssid = line.split()[-1].upper()
@@ -551,7 +552,7 @@ class Companion():
         if showcmd:
             print(cmd)
         r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
-                           stderr=sys.stdout, encoding='utf-8')
+                           stderr=sys.stdout, encoding='utf-8', errors='replace')
         print(r.stdout)
         if r.returncode == 0:
             lines = r.stdout.splitlines()
@@ -799,7 +800,7 @@ class WiFiScanner():
 
         reports_fname = os.path.dirname(os.path.realpath(__file__)) + '/reports/stored.csv'
         try:
-            with open(reports_fname, 'r', newline='', encoding='utf-8') as file:
+            with open(reports_fname, 'r', newline='', encoding='utf-8', errors='replace') as file:
                 csvReader = csv.reader(file, delimiter=';', quoting=csv.QUOTE_ALL)
                 # Skip header
                 next(csvReader)
@@ -831,7 +832,7 @@ class WiFiScanner():
 
         def handle_essid(line, result, networks):
             d = result.group(1)
-            networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
+            networks[-1]['ESSID'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
 
         def handle_level(line, result, networks):
             networks[-1]['Level'] = int(float(result.group(1)))
@@ -866,19 +867,19 @@ class WiFiScanner():
 
         def handle_model(line, result, networks):
             d = result.group(1)
-            networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
+            networks[-1]['Model'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
 
         def handle_modelNumber(line, result, networks):
             d = result.group(1)
-            networks[-1]['Model number'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
+            networks[-1]['Model number'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
 
         def handle_deviceName(line, result, networks):
             d = result.group(1)
-            networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='ignore')
+            networks[-1]['Device name'] = codecs.decode(d, 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
 
         cmd = 'iw dev {} scan'.format(self.interface)
         proc = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, encoding='utf-8')
+                              stderr=subprocess.STDOUT, encoding='utf-8', errors='replace')
         lines = proc.stdout.splitlines()
         networks = []
         matchers = {

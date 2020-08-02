@@ -696,7 +696,7 @@ class Companion():
                     return self.single_connection(bssid, pin, pixiemode=False, store_pin_on_fail=True)
                 return False
             else:
-                print('[!] No enough data to run Pixie Dust attack')
+                print('[!] Not enough data to run Pixie Dust attack')
                 return False
         else:
             if store_pin_on_fail:

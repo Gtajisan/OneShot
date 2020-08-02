@@ -1029,6 +1029,7 @@ Advanced arguments:
     --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
     --iface-down             : Down network interface when the work is finished
     -v, --verbose            : Verbose output
+    -l, --loop               : Run in a loop
 
 Example:
     %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K
@@ -1105,6 +1106,11 @@ if __name__ == '__main__':
         default=os.path.dirname(os.path.realpath(__file__)) + '/vulnwsc.txt',
         help='Use custom file with vulnerable devices list'
         )
+    parser.add_argument(
+        '-l', '--loop',
+        action='store_true',
+        help='Run in a loop'
+        )
 
     args = parser.parse_args()
 
@@ -1116,26 +1122,37 @@ if __name__ == '__main__':
     if not ifaceUp(args.interface):
         die('Unable to up interface "{}"'.format(args.interface))
 
-    try:
-        if not args.bssid:
-            try:
-                with open(args.vuln_list, 'r', encoding='utf-8') as file:
-                    vuln_list = file.read().splitlines()
-            except FileNotFoundError:
-                vuln_list = []
-            scanner = WiFiScanner(args.interface, vuln_list)
-            print('[*] BSSID not specified (--bssid) — scanning for available networks')
-            args.bssid = scanner.prompt_network()
+    while True:
+        try:
+            if not args.bssid:
+                try:
+                    with open(args.vuln_list, 'r', encoding='utf-8') as file:
+                        vuln_list = file.read().splitlines()
+                except FileNotFoundError:
+                    vuln_list = []
+                scanner = WiFiScanner(args.interface, vuln_list)
+                print('[*] BSSID not specified (--bssid) — scanning for available networks')
+                args.bssid = scanner.prompt_network()
 
-        if args.bssid:
-            companion = Companion(args.interface, args.write, print_debug=args.verbose)
-            if args.bruteforce:
-                companion.smart_bruteforce(args.bssid, args.pin, args.delay)
+            if args.bssid:
+                companion = Companion(args.interface, args.write, print_debug=args.verbose)
+                if args.bruteforce:
+                    companion.smart_bruteforce(args.bssid, args.pin, args.delay)
+                else:
+                    companion.single_connection(args.bssid, args.pin, args.pixie_dust,
+                                                args.show_pixie_cmd, args.pixie_force)
+            if not args.loop:
+                break;
+        except KeyboardInterrupt:
+            if args.loop:
+                if input("\nExit the script (otherwise continue to AP scan) [n/Y] ") != 'n':
+                    print("Aborting…")
+                    break
+                else:
+                    args.bssid = None;
             else:
-                companion.single_connection(args.bssid, args.pin, args.pixie_dust,
-                                            args.show_pixie_cmd, args.pixie_force)
-    except KeyboardInterrupt:
-        print("\nAborting…")
+                print("\nAborting…")
+                break;
 
     if args.iface_down:
         ifaceUp(args.interface, down=True)

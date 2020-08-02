@@ -940,7 +940,7 @@ class WiFiScanner():
             else:
                 return text
             return text
-        if vuln_list:
+        if self.vuln_list:
             print(colored('Green', color='green'), '— possible vulnerable network',
                   '\n' + colored('Red', color='red'), '— WPS locked',
                   '\n' + colored('Yellow', color='yellow'), '— already stored')
@@ -961,7 +961,7 @@ class WiFiScanner():
                 print(colored(line, color='red'))
             elif (network['BSSID'], network['ESSID']) in self.stored:
                 print(colored(line, color='yellow'))
-            elif vuln_list and (model in vuln_list):
+            elif self.vuln_list and (model in self.vuln_list):
                 print(colored(line, color='green'))
             else:
                 print(line)

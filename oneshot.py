@@ -1145,11 +1145,11 @@ if __name__ == '__main__':
                 break;
         except KeyboardInterrupt:
             if args.loop:
-                if input("\nExit the script (otherwise continue to AP scan) [n/Y] ") != 'n':
+                if input("\nExit the script (otherwise continue to AP scan)? [N/y] ").lower() == 'y':
                     print("Aborting…")
-                    break
+                    break;
                 else:
-                    args.bssid = None;
+                    args.bssid = None
             else:
                 print("\nAborting…")
                 break;

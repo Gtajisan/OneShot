@@ -127,6 +127,7 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
      --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
      --iface-down             : Down network interface when the work is finished
      -v, --verbose            : Verbose output
+     -l, --loop               : Run in a loop
  ```
 
 ## Usage examples

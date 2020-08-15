@@ -780,6 +780,8 @@ class Companion():
             with open(filename, 'w') as file:
                 file.write(self.bruteforce.mask)
             print('[i] Session saved in {}'.format(filename))
+            if args.loop:
+                raise KeyboardInterrupt
 
     def cleanup(self):
         self.retsock.close()
@@ -1142,17 +1144,17 @@ if __name__ == '__main__':
                     companion.single_connection(args.bssid, args.pin, args.pixie_dust,
                                                 args.show_pixie_cmd, args.pixie_force)
             if not args.loop:
-                break;
+                break
         except KeyboardInterrupt:
             if args.loop:
-                if input("\nExit the script (otherwise continue to AP scan)? [N/y] ").lower() == 'y':
+                if input("\n[?] Exit the script (otherwise continue to AP scan)? [N/y] ").lower() == 'y':
                     print("Aborting…")
-                    break;
+                    break
                 else:
                     args.bssid = None
             else:
                 print("\nAborting…")
-                break;
+                break
 
     if args.iface_down:
         ifaceUp(args.interface, down=True)

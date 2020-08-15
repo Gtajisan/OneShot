@@ -978,7 +978,7 @@ class WiFiScanner():
         while 1:
             try:
                 networkNo = input('Select target ("r" for refresh): ')
-                if networkNo.lower() == 'r':
+                if networkNo.lower() in ('r', '0'):
                     return self.prompt_network()
                 elif int(networkNo) in range(1, len(networks) + 1):
                     return networks[int(networkNo) - 1]['BSSID']

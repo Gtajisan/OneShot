@@ -1030,8 +1030,8 @@ Advanced arguments:
     -X, --show-pixie-cmd     : Alway print Pixiewps command
     --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
     --iface-down             : Down network interface when the work is finished
-    -v, --verbose            : Verbose output
     -l, --loop               : Run in a loop
+    -v, --verbose            : Verbose output
 
 Example:
     %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K
@@ -1145,6 +1145,8 @@ if __name__ == '__main__':
                                                 args.show_pixie_cmd, args.pixie_force)
             if not args.loop:
                 break
+            else:
+                args.bssid = None
         except KeyboardInterrupt:
             if args.loop:
                 if input("\n[?] Exit the script (otherwise continue to AP scan)? [N/y] ").lower() == 'y':

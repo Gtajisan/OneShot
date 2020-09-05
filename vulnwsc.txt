@@ -13,6 +13,8 @@ Archer C50 5.0
 Archer MR200 1.0
 DAP-1360 DAP-1360
 DWR-921C3 WBR-0001
+D-Link Router DIR-605L
+D-Link Router DIR-809
 Home Internet Center KEENETIC series
 Home Internet Center Keenetic series
 JWNR2000v2(Wireless AP) JWNR2000v2
@@ -44,11 +46,14 @@ TL-WR850N 3.0
 TL-WR1042N EV-2010-09-20
 Trendnet router TEW-651br
 VMG8623-T50A RT2860
+Wi-Fi Protected Setup Router RT-N12D1
 Wi-Fi Protected Setup Router RT-N12VP
+Wireless Router RTL8xxx EV-2009-02-06
 Wireless WPS Router <#ZVMODELVZ#>
 Wireless WPS Router RT-N10E
 Wireless WPS Router RT-N12E
 Wireless WPS Router RT-N12LX
+WPS Router DSL-N17U
 WPS Router RT-AC750
 WPS Router RT-AC1200
 WPS Router RT-AC1200_V2
@@ -61,3 +66,5 @@ WPS Router RT-N12 VP
 WPS Router RT-N12+
 WPS Router RT-N56U
 WPS Router RT-N300
+ZyXEL NBG-416N AP Router
+ZyXEL NBG-418N AP Router

@@ -23,6 +23,7 @@ Linksys Wireless Router WRT110
 NETGEAR Wireless Access Point R6220
 N/A EV-2010-09-20
 Ralink Wireless Access Point RT2860
+Ralink Wireless Access Point WR-AC1210
 RTL8196E
 RTL8xxx EV-2010-09-20
 Tenda 123456
@@ -31,6 +32,7 @@ TD-W8951ND RT2860
 TD-W8968 2.0
 TL-MR3020 3.0
 TL-MR6400 3.0
+TL-MR6400 4.0
 TL-WR840N 4.0
 TL-WR840N 5.0
 TL-WR840N 6.0
@@ -44,10 +46,13 @@ TL-WR850N 1.0
 TL-WR850N 2.0
 TL-WR850N 3.0
 TL-WR1042N EV-2010-09-20
+Trendnet router TEW-625br
 Trendnet router TEW-651br
 VMG8623-T50A RT2860
+Wi-Fi Protected Setup Router RT-N12
 Wi-Fi Protected Setup Router RT-N12D1
 Wi-Fi Protected Setup Router RT-N12VP
+Wireless Router EV-2009-02-06
 Wireless Router RTL8xxx EV-2009-02-06
 Wireless WPS Router <#ZVMODELVZ#>
 Wireless WPS Router RT-N10E
@@ -64,6 +69,7 @@ WPS Router RT-N11P
 WPS Router RT-N12E
 WPS Router RT-N12 VP
 WPS Router RT-N12+
+WPS Router RT-N14U
 WPS Router RT-N56U
 WPS Router RT-N300
 ZyXEL NBG-416N AP Router

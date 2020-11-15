@@ -1133,7 +1133,8 @@ if __name__ == '__main__':
                 except FileNotFoundError:
                     vuln_list = []
                 scanner = WiFiScanner(args.interface, vuln_list)
-                print('[*] BSSID not specified (--bssid) — scanning for available networks')
+                if not args.loop:
+                    print('[*] BSSID not specified (--bssid) — scanning for available networks')
                 args.bssid = scanner.prompt_network()
 
             if args.bssid:

@@ -959,10 +959,10 @@ class WiFiScanner():
                 network['Security type'], network['Level'],
                 deviceName, model
                 )
-            if network['WPS locked']:
-                print(colored(line, color='red'))
-            elif (network['BSSID'], network['ESSID']) in self.stored:
+            if (network['BSSID'], network['ESSID']) in self.stored:
                 print(colored(line, color='yellow'))
+            elif network['WPS locked']:
+                print(colored(line, color='red'))
             elif self.vuln_list and (model in self.vuln_list):
                 print(colored(line, color='green'))
             else:

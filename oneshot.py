@@ -973,7 +973,7 @@ class WiFiScanner():
     def prompt_network(self):
         networks = self.iw_scanner()
         if not networks:
-            print('[-] No networks found.')
+            print('[-] No WPS networks found.')
             return
         while 1:
             try:

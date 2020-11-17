@@ -943,9 +943,12 @@ class WiFiScanner():
                 return text
             return text
         if self.vuln_list:
-            print(colored('Possibly vulnerable', color='green'), ' | ',
-                  colored('WPS locked', color='red'), ' | ', 
-                  colored('Already stored', color='yellow'))
+            print('{1} {0} {2} {0} {3}'.format(
+                '|',
+                colored('Possibly vulnerable', color='green'),
+                colored('WPS locked', color='red'),
+                colored('Already stored', color='yellow')
+            ))
         print('Networks list:')
         print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
             '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))

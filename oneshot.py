@@ -943,7 +943,7 @@ class WiFiScanner():
                 return text
             return text
         if self.vuln_list:
-            print('{1} {0} {2} {0} {3}'.format(
+            print('Network marks: {1} {0} {2} {0} {3}'.format(
                 '|',
                 colored('Possibly vulnerable', color='green'),
                 colored('WPS locked', color='red'),

@@ -78,9 +78,7 @@ Please note that root access is required.
 
 #### Using installer
  ```
- pkg install -y wget
- wget https://raw.githubusercontent.com/drygdryg/OneShot_Termux_installer/master/installer.sh
- bash installer.sh
+ curl -sSf https://raw.githubusercontent.com/drygdryg/OneShot_Termux_installer/master/installer.sh | bash
  ```
 #### Manually
 **Installing requirements**

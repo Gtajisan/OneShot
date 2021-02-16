@@ -83,26 +83,16 @@ Please note that root access is required.
 #### Manually
 **Installing requirements**
  ```
- pkg install root-repo
- pkg install wget build-essential wpa-supplicant tsu python iw
- ```
-**Building Pixiewps**
- ```
- wget https://github.com/wiire-a/pixiewps/archive/master.zip && unzip master.zip
- cd pixiewps*/
- make && make install
+ pkg install -y root-repo
+ pkg install -y git tsu python wpa-supplicant pixiewps iw
  ```
 **Getting OneShot**
  ```
- wget https://raw.githubusercontent.com/drygdryg/OneShot/master/oneshot.py
- ```
-Optional: getting a list of vulnerable to pixie dust devices for highlighting in scan results:
- ```
- wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
+ git clone --depth 1 https://github.com/drygdryg/OneShot OneShot
  ```
 #### Running
  ```
- sudo python oneshot.py -i wlan0 --iface-down -K
+ sudo python OneShot/oneshot.py -i wlan0 --iface-down -K
  ```
 
 # Usage

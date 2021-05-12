@@ -914,7 +914,7 @@ class WiFiScanner():
             return False
 
         # Sorting by signal level
-        networks.sort(key=lambda x: x['Level'], reverse=True)
+        networks.sort(key=lambda x: x['Level'], reverse=not args.reverse_scan)
 
         # Printing scanning results as table
         def truncateStr(s, length, postfix='…'):
@@ -1035,6 +1035,7 @@ Advanced arguments:
     --iface-down             : Down network interface when the work is finished
     -l, --loop               : Run in a loop
     -v, --verbose            : Verbose output
+    -r, --reverse-scan       : Reverse sorting of networks in the scan. Useful on small displays
 
 Example:
     %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K
@@ -1115,6 +1116,11 @@ if __name__ == '__main__':
         '-l', '--loop',
         action='store_true',
         help='Run in a loop'
+        )
+    parser.add_argument(
+        '-r', '--reverse-scan',
+        action='store_true',
+        help='Reverse sorting of networks in the scan. Useful on small displays'
         )
 
     args = parser.parse_args()

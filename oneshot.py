@@ -632,7 +632,11 @@ class Companion():
         r = self.sendAndReceive(f'WPS_REG {bssid} {pin}')
         if 'OK' not in r:
             self.connection_status.status = 'WPS_FAIL'
-            print('[!] Something went wrong — check out debug log')
+            if r == 'UNKNOWN COMMAND':
+                print('[!] It looks like your wpa_supplicant is compiled without WPS protocol support. '
+                      'Please build wpa_supplicant with WPS support ("CONFIG_WPS=y")')
+            else:
+                print('[!] Something went wrong — check out debug log')
             return False
 
         while True:

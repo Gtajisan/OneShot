@@ -957,7 +957,10 @@ class WiFiScanner():
         print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
             '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
         for i, network in enumerate(networks):
-            number = '{})'.format(i + 1)
+            if args.reverse_scan:
+                number = '{})'.format(len(networks) - i)
+            else:
+                number = '{})'.format(i + 1)
             model = '{} {}'.format(network['Model'], network['Model number'])
             essid = truncateStr(network['ESSID'], 25)
             deviceName = truncateStr(network['Device name'], 27)

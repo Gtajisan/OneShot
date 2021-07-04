@@ -14,6 +14,7 @@ from datetime import datetime
 import collections
 import statistics
 import csv
+from typing import Dict
 
 
 class NetworkAddress():
@@ -821,7 +822,7 @@ class WiFiScanner():
         except FileNotFoundError:
             self.stored = []
 
-    def iw_scanner(self):
+    def iw_scanner(self) -> Dict[int, dict]:
         '''Parsing iw scan results'''
         def handle_network(line, result, networks):
             networks.append(
@@ -918,7 +919,10 @@ class WiFiScanner():
             return False
 
         # Sorting by signal level
-        networks.sort(key=lambda x: x['Level'], reverse=not args.reverse_scan)
+        networks.sort(key=lambda x: x['Level'], reverse=True)
+
+        # Putting a list of networks in a dictionary, where each key is a network number in list of networks
+        network_list = {(i + 1): network for i, network in enumerate(networks)}
 
         # Printing scanning results as table
         def truncateStr(s, length, postfix='…'):
@@ -946,6 +950,7 @@ class WiFiScanner():
             else:
                 return text
             return text
+
         if self.vuln_list:
             print('Network marks: {1} {0} {2} {0} {3}'.format(
                 '|',
@@ -956,11 +961,12 @@ class WiFiScanner():
         print('Networks list:')
         print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
             '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
-        for i, network in enumerate(networks):
-            if args.reverse_scan:
-                number = '{})'.format(len(networks) - i)
-            else:
-                number = '{})'.format(i + 1)
+
+        network_list_items = list(network_list.items())
+        if args.reverse_scan:
+            network_list_items = network_list_items[::-1]
+        for n, network in network_list_items:
+            number = f'{n})'
             model = '{} {}'.format(network['Model'], network['Model number'])
             essid = truncateStr(network['ESSID'], 25)
             deviceName = truncateStr(network['Device name'], 27)
@@ -978,9 +984,9 @@ class WiFiScanner():
             else:
                 print(line)
 
-        return networks
+        return network_list
 
-    def prompt_network(self):
+    def prompt_network(self) -> str:
         networks = self.iw_scanner()
         if not networks:
             print('[-] No WPS networks found.')
@@ -990,8 +996,8 @@ class WiFiScanner():
                 networkNo = input('Select target (press Enter to refresh): ')
                 if networkNo.lower() in ('r', '0', ''):
                     return self.prompt_network()
-                elif int(networkNo) in range(1, len(networks) + 1):
-                    return networks[int(networkNo) - 1]['BSSID']
+                elif int(networkNo) in networks.keys():
+                    return networks[int(networkNo)]['BSSID']
                 else:
                     raise IndexError
             except Exception:
@@ -1041,8 +1047,8 @@ Advanced arguments:
     --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
     --iface-down             : Down network interface when the work is finished
     -l, --loop               : Run in a loop
+    -r, --reverse-scan       : Reverse order of networks in the list of networks. Useful on small displays
     -v, --verbose            : Verbose output
-    -r, --reverse-scan       : Reverse sorting of networks in the scan. Useful on small displays
 
 Example:
     %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K
@@ -1127,7 +1133,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-r', '--reverse-scan',
         action='store_true',
-        help='Reverse sorting of networks in the scan. Useful on small displays'
+        help='Reverse order of networks in the list of networks. Useful on small displays'
         )
 
     args = parser.parse_args()

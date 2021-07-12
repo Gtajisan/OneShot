@@ -661,11 +661,11 @@ class Companion:
         if not pin:
             if pixiemode:
                 try:
-                    # Try using the previous calculated PIN
+                    # Try using the previously calculated PIN
                     filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
                     with open(filename, 'r') as file:
                         t_pin = file.readline().strip()
-                        if input('[?] Use previous calculated PIN {}? [n/Y] '.format(t_pin)).lower() != 'n':
+                        if input('[?] Use previously calculated PIN {}? [n/Y] '.format(t_pin)).lower() != 'n':
                             pin = t_pin
                         else:
                             raise FileNotFoundError

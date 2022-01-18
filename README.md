@@ -106,6 +106,7 @@ Please note that root access is required.
      -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
      -K, --pixie-dust         : Run Pixie Dust attack
      -B, --bruteforce         : Run online bruteforce attack
+     --push-button-connect    : Run WPS push button connection
 
  Advanced arguments:
      -d, --delay=<n>          : Set the delay between pin attempts [0]
@@ -130,6 +131,10 @@ Show avaliable networks and start Pixie Dust attack on a specified network:
 Launch online WPS bruteforce with the specified first half of the PIN:
  ```
  sudo python3 oneshot.py -i wlan0 -b 00:90:4C:C1:AC:21 -B -p 1234
+ ```
+ Start WPS push button connection:s
+ ```
+ sudo python3 oneshot.py -i wlan0 --pbc
  ```
 ## Troubleshooting
 #### "RTNETLINK answers: Operation not possible due to RF-kill"

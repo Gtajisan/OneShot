@@ -1069,6 +1069,7 @@ Advanced arguments:
     --iface-down             : Down network interface when the work is finished
     -l, --loop               : Run in a loop
     -r, --reverse-scan       : Reverse order of networks in the list of networks. Useful on small displays
+    -m, --mtk-fix            : MTK interface fix, turn off Wi-Fi to use this
     -v, --verbose            : Verbose output
 
 Example:
@@ -1157,6 +1158,11 @@ if __name__ == '__main__':
         help='Reverse order of networks in the list of networks. Useful on small displays'
     )
     parser.add_argument(
+        '-m', '--mtk-fix',
+        action='store_true',
+        help='MTK interface fix, turn off Wi-Fi to use thiss'
+    )
+    parser.add_argument(
         '-v', '--verbose',
         action='store_true',
         help='Verbose output'
@@ -1168,6 +1174,11 @@ if __name__ == '__main__':
         die("The program requires Python 3.6 and above")
     if os.getuid() != 0:
         die("Run it as root")
+        
+    if args.mtk_fix:
+        subprocess.run("chmod 644 /dev/wmtWifi", shell=True, stdout=sys.stdout, stderr=sys.stdout)
+        subprocess.run("echo 1 > /dev/wmtWifi, shell=True, stdout=sys.stdout, stderr=sys.stdout)
+        
 
     if not ifaceUp(args.interface):
         die('Unable to up interface "{}"'.format(args.interface))

@@ -146,11 +146,7 @@ Launch online WPS bruteforce with the specified first half of the PIN:
 #### "Device or resource busy (-16)"
  Try disabling Wi-Fi in the system settings and kill the Network manager. Alternatively, you can try running OneShot with ```--iface-down``` argument.
 #### The wlan0 interface disappears when Wi-Fi is disabled on Android devices with MediaTek SoC
- Try run the following:
-```
-sudo chmod 644 /dev/wmtWifi
-sudo sh -c 'echo 1 > /dev/wmtWifi'
-```
+ Try running OneShot with the `--mtk-wifi` flag to initialize Wi-Fi device driver.
 # Acknowledgements
 ## Special Thanks
 * `rofl0r` for initial implementation;

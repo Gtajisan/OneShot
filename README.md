@@ -73,7 +73,7 @@ Optional: getting a list of vulnerable to pixie dust devices for highlighting in
  ```
  sudo wget https://raw.githubusercontent.com/drygdryg/OneShot/master/vulnwsc.txt
  ```
-## [Termux](https://play.google.com/store/apps/details?id=com.termux)
+## [Termux](https://termux.com/)
 Please note that root access is required.  
 
 #### Using installer

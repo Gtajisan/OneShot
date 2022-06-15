@@ -116,6 +116,9 @@ Please note that root access is required.
      --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
      --iface-down             : Down network interface when the work is finished
      -l, --loop               : Run in a loop
+     -r, --reverse-scan       : Reverse order of networks in the list of networks. Useful on small displays
+     --mtk-wifi               : Activate MediaTek Wi-Fi interface driver on startup and deactivate it on exit
+                                (for internal Wi-Fi adapters implemented in MediaTek SoCs). Turn off Wi-Fi in the system settings before using this.
      -v, --verbose            : Verbose output
  ```
 
